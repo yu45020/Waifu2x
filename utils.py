@@ -1,6 +1,7 @@
 import torch
 from PIL import Image
 from torchvision import transforms
+from itertools import islice, takewhile
 
 
 class ImagePatches:
@@ -9,24 +10,27 @@ class ImagePatches:
         self.width = None
         self.scale = upscale
         self.seg_size = seg_size
+        self.patch_count = []
 
     def split_img_tensor(self, img_tensor):
         assert torch.is_tensor(img_tensor)
         batch, channel, self.height, self.width = img_tensor.size()
         all_patches = []
         for w in range(0, self.width, self.seg_size):
-            patches = []
+            counter = 0
             for h in range(0, self.height, self.seg_size):
-                patches.append(img_tensor[:, :,
-                               h:min(h + self.seg_size, self.height),
-                               w:min(w + self.seg_size, self.width)])
-            all_patches.append(patches)
+                all_patches.append(img_tensor[:, :,
+                                   h:min(h + self.seg_size, self.height),
+                                   w:min(w + self.seg_size, self.width)])
+                counter += 1
+            self.patch_count.append(counter)
+            # all_patches.append(patches)
         return all_patches
 
     def merge_imgs(self, list_img):
-        assert isinstance(list_img, list)
         out_height = self.scale * self.height
         out_widht = self.scale * self.width
+        list_img = self.reshape(list_img)
         new_img = torch.zeros((1, 3, out_height, out_widht))
         init_w = 0
         for patches in list_img:
@@ -37,6 +41,12 @@ class ImagePatches:
                 init_h += height
             init_w += width
         return new_img
+
+    def reshape(self, img_patches):
+        img_patches = iter(img_patches)
+        out = list(takewhile(bool, (list(islice(img_patches, 0, i)) for i in self.patch_count)))
+        return out
+
 
 def convert_2_tensor(file_name):
     img_tensor = Image.open(file_name)

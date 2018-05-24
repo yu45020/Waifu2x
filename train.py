@@ -1,27 +1,60 @@
+import torch
+from dataloader import *
+from loss import *
 from models import *
 from utils import *
-import time
+import glob
 from torchvision.utils import save_image
+import pickle
+from torch.optim import Adam
 from tqdm import tqdm
-from multiprocessing import Process, Pool, cpu_count
-
-img = convert_2_tensor('1.png')
-img_pathes = ImagePatches(seg_size=100, upscale=2)
-
-model = ESPCN_5(in_channels=3, upscale=2)
-model.eval()
 
 
-if __name__ == '__main__':
-    img_pieces = img_pathes.split_img_tensor(img)
-    start_t = time.time()
-    out = []
-    with Pool(cpu_count()) as p:
-        for pieces in tqdm(img_pieces, ascii=True):
-            new = p.map(model.forward_checkpoint, pieces)
-            out.append(new)
 
-    end_t = time.time()
-    bb = img_pathes.merge_imgs(out)
-    save_image(bb, 'split2.jpg')
-    print("Runtime :{}".format(end_t-start_t))
+rgb_weights = [0.29891, 0.58661, 0.11448]
+# https://github.com/nagadomi/waifu2x/blob/master/train.lua#L109
+
+use_cuda = torch.cuda.is_available()
+FloatTensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
+LongTensor = torch.cuda.LongTensor if use_cuda else torch.LongTensor
+Tensor = FloatTensor
+
+
+train_folder = './dataset/train/'
+img_data = ImageLoader(train_folder, batch_size=10, shuffle=True)
+criteria = WeightedMSELoss(weights=rgb_weights)
+model = ESPCN_7(in_channels=3, upscale=2)
+
+learning_rate = 5e-3
+weight_decay = 1e-4
+optimizer = Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay, amsgrad=True)
+
+
+if use_cuda:
+    model = model.cuda()
+    criteria = criteris.cuda()
+
+iteration = 2
+all_loss = []
+counter = 0
+
+for i in tdqm(iteration):
+    batch_loss = []
+    for batch in img_data:
+        lr_img, hr_img = batch
+        lr_img = lr_img.cuda()
+        hr_img.cuda(async=True)
+        model.zero_grad()
+
+        outputs = model.forward(lr_img)
+        loss = criteria(outputs, hr_img)
+        loss.backward()
+        optimizer.step()
+        counter += 1
+        all_loss.append(loss.item())
+        batch_loss.append(loss.item())
+        print("Current batch {} has loss {:.5f}".format(counter, loss.item()))
+
+    one_ite_loss = np.mean(batch_loss)
+    print("One iteration loss {:.5f}".format(one_ite_loss))
+
