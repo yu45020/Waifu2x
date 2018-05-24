@@ -1,10 +1,14 @@
-import torch
-from torch.utils.data import DataLoader, Dataset
 import os
-import glob
+import torch
 from PIL import Image
+from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import ToTensor
-from torchvision.datasets import ImageFolder
+
+use_cuda = torch.cuda.is_available()
+FloatTensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
+LongTensor = torch.cuda.LongTensor if use_cuda else torch.LongTensor
+Tensor = FloatTensor
+
 
 
 class ImageData(Dataset):
@@ -44,6 +48,9 @@ class ImageData(Dataset):
 
         hr_img = [i[1] for i in batch]
         hr_img = torch.stack(hr_img, dim=0)
+        if use_cuda:
+            lr_img = lr_img.cuda()
+            hr_img.cuda(async=True)
         return lr_img, hr_img
 
 

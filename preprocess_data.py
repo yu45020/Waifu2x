@@ -1,11 +1,9 @@
+import shutil
+
 import PIL
 import glob
 from PIL import Image
 from multiprocessing import Pool, cpu_count
-import torch
-from torchvision.transforms import ToTensor
-from torchvision.utils import save_image
-import Augmentor
 import random
 import uuid
 import os
@@ -22,26 +20,25 @@ class ImageAugment:
     def __init__(self, out_folder,
                  temp_folder,
                  max_patch_per_img=100,
-                 patch_size=48,
-                 shrink_size=2,
-                 noise_level=0
+                 patch_size=48
                  ):
         # noise_level (int): 0: no noise; 1: 90% quality; 2:80%
         if not os.path.isdir(out_folder):
             os.mkdir(out_folder)
         if not os.path.isdir(out_folder + "hr/"):
             os.mkdir(out_folder + 'hr/')
-            os.mkdir(out_folder + 'lr/')
 
         if not os.path.isdir(temp_folder):
             os.mkdir(temp_folder)
+
         self.temp_folder = temp_folder
 
         self.out_folder = out_folder
         self.max_path_per_img = max_patch_per_img
-        self.shrink_size = shrink_size
-        self.noise_level = noise_level
         self.patch_size = patch_size
+
+        self.img_cache = []
+        self.folder_count = 0
 
     def none_overlap_patch_crop(self, img):
         img_patches = self.get_img_grids(img, self.patch_size)
@@ -63,67 +60,45 @@ class ImageAugment:
 
         return patch_box
 
-    def shrink_image(self, img_hr):
-        size = tuple(map(lambda x: int(x / self.shrink_size), img_hr.size))
-        img_lr = img_hr.resize(size, resample=PIL.Image.NEAREST)
-        return img_lr, img_hr
-
-    def add_noise(self, img_tuple):
-        quality = 100 - 10 * self.noise_level
-        img_lr, img_hr = img_tuple
-        temp = self.temp_folder + str(uuid.uuid4()) + '.jpeg'
-        img_lr.save(temp, format='JPEG', quality=quality)
-        img_lr = Image.open(temp)
-        return img_lr, img_hr
-
     def process(self, img_file):
         img = Image.open(img_file)
         hr_patch = self.none_overlap_patch_crop(img)
-        lr_hr_patch = [self.shrink_image(i) for i in hr_patch]
-        if self.noise_level > 0:
-            lr_hr_patch = [self.add_noise(i) for i in lr_hr_patch]
-        # tensor_patch = [self.convert_2_tensor(i) for i in lr_hr_patch]
-        [self.save(i) for i in lr_hr_patch]
+        file_names = [self.save(i) for i in hr_patch]
+        return file_names
 
-    # def convert_2_tensor(self, lr_hr_patch):
-    #     lr_patch, hr_patch = lr_hr_patch
-    #     lr_patch = ToTensor()(lr_patch)
-    #     hr_patch = ToTensor()(hr_patch)
-    #     return {'lr': lr_patch, 'hr': hr_patch}
+    def save(self, hr_img):
+        name = uuid.uuid4()
+        file_name = self.out_folder + "hr/{}.png".format(name)
+        hr_img.save(file_name, format='PNG')
+        return file_name
 
-    def clean_temp(self):
-        if self.noise_level > 0:
-            all_temps = glob.glob(self.temp_folder + '*.*')
-            [os.remove(file) for file in all_temps]
-
-    def save(self, img_patch):
-        lr_img, hr_img = img_patch
-        file_name = uuid.uuid4()
-        lr_img.save(self.out_folder + 'lr/{}.jpeg'.format(file_name), format='JPEG', quality=100)
-        hr_img.save(self.out_folder + "hr/{}.png".format(file_name), format='PNG')
+    def split_img_2_folders(self, file_names):
+        self.img_cache += file_names
+        if len(self.img_cache) >= 1000:
+            new_folder = os.path.join(self.out_folder, "hr", str(self.folder_count))
+            os.mkdir(new_folder)
+            [shutil.move(i, new_folder) for i in self.img_cache]
+            self.img_cache = []
+            self.folder_count += 1
 
 
-if __name__ == '__main__':
-    all_images = glob.glob(img_source, recursive=True)
+def split_img_2_folders(folder, file_names):
+    file_count = len(file_names)
+    for i in tqdm(range(0, file_count, 1000)):
+        file_cache = file_names[i:min(i + 1000, file_count)]
+        new_folder = folder + str(i) + '/'
+        os.mkdir(new_folder)
+        [shutil.move(i, new_folder) for i in file_cache]
+
+
+if __name__ == "__main__":
+    all_images = glob.glob(img_source)
     augmenter = ImageAugment(out_folder=train_folder,
                              temp_folder=temp_folder,
+                             max_patch_per_img=1000,
                              patch_size=192,  # high resolution images
-                             shrink_size=2,  # low resolution images
-                             noise_level=1,
-                             max_patch_per_img=1000
                              )
     print("Find {} images.".format(len(all_images)))
     with Pool(cpu_count()) as p:
-        p.map(augmenter.process, tqdm(all_images, ascii=True))
-
-    # augmenter.save(out)
-    augmenter.clean_temp()
-
-
-
-from shutil import make_archive
-
-make_archive('./dataset/train_data_hr.zip', format='zip',
-             root_dir="./dataset/train/hr/")
-make_archive('./dataset/train_data_lr.zip', format='zip',
-             root_dir='./dataset/train/lr/')
+        out = p.map(augmenter.process, all_images)
+    split_img_2_folders(train_folder + 'hr/', out)

@@ -1,7 +1,7 @@
+import warnings
+
 import torch
 import torch.nn as nn
-import math
-import warnings
 from torch.utils.checkpoint import checkpoint
 
 warnings.simplefilter('ignore')

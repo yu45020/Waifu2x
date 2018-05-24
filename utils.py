@@ -46,10 +46,3 @@ class ImagePatches:
         img_patches = iter(img_patches)
         out = list(takewhile(bool, (list(islice(img_patches, 0, i)) for i in self.patch_count)))
         return out
-
-
-def convert_2_tensor(file_name):
-    img_tensor = Image.open(file_name)
-    img_tensor = transforms.ToTensor()(img_tensor)
-    img_tensor = img_tensor.unsqueeze(0)
-    return img_tensor
