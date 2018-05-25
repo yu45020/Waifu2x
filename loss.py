@@ -6,7 +6,10 @@ from torch.nn.functional import _pointwise_loss
 rgb_weights = [0.29891, 0.58661, 0.11448]
 # RGB have different weights
 # https://github.com/nagadomi/waifu2x/blob/master/train.lua#L109
-
+use_cuda = torch.cuda.is_available()
+FloatTensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
+LongTensor = torch.cuda.LongTensor if use_cuda else torch.LongTensor
+Tensor = FloatTensor
 
 class WeightedMSELoss(nn.MSELoss):
     def __init__(self, weights=rgb_weights, size_average=True, reduce=True):

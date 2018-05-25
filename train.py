@@ -16,7 +16,17 @@ LongTensor = torch.cuda.LongTensor if use_cuda else torch.LongTensor
 Tensor = FloatTensor
 
 train_folder = './dataset/train/'
-img_data = ImageLoader(train_folder, batch_size=1, shuffle=True)
+img_dataset = ImageData(train_folder,
+                        max_patch_per_img=1000,
+                        patch_size=1920,
+                        shrink_size=2,
+                        noise_level=1,
+                        down_sample_method=Image.BICUBIC)
+
+img_data = ImageLoader(img_dataset,
+                       batch_size=10,
+                       shuffle=True)
+
 criteria = WeightedMSELoss(weights=rgb_weights)
 model = ESPCN_7(in_channels=3, upscale=2)
 
@@ -28,7 +38,7 @@ if use_cuda:
     model = model.cuda()
     criteria = criteria.cuda()
 
-iteration = 2
+iteration = 1
 all_loss = []
 counter = 0
 
@@ -50,3 +60,5 @@ for i in trange(iteration, ascii=True):
 
     one_ite_loss = np.mean(batch_loss)
     print("One iteration loss {:.5f}".format(one_ite_loss))
+
+

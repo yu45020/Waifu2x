@@ -48,16 +48,10 @@ class ImageAugment:
 
     @staticmethod
     def get_img_grids(img, patch_size):
-        # output a list of tuples
-        # the box starts from upper left and moves vertically, so the right corner may be dropped
         img_w, img_h = img.size
-        patch_box = []
-        for w in range(0, img_w, patch_size):
-            for h in range(0, img_h, patch_size):
-                if (w + patch_size) <= img_h and (h + patch_size) <= img_w:
-                    box = (h, w, h + patch_size, w + patch_size)
-                    patch_box.append(box)
-
+        count_w, count_h = img_w // patch_size, img_h // patch_size
+        patch_box = [(patch_size * i, patch_size * j, patch_size * (i + 1), patch_size * (j + 1))
+                     for i in range(count_w) for j in range(count_h)]
         return patch_box
 
     def process(self, img_file):
@@ -81,15 +75,15 @@ class ImageAugment:
             self.img_cache = []
             self.folder_count += 1
 
+all_images = glob.glob(img_source)
 
-def split_img_2_folders(folder, file_names):
-    file_count = len(file_names)
-    for i in tqdm(range(0, file_count, 1000)):
-        file_cache = file_names[i:min(i + 1000, file_count)]
-        new_folder = folder + str(i) + '/'
-        os.mkdir(new_folder)
-        [shutil.move(i, new_folder) for i in file_cache]
-
+augmenter = ImageAugment(out_folder=train_folder,
+                         temp_folder=temp_folder,
+                         max_patch_per_img=1000,
+                         patch_size=1200,  # high resolution images
+                         )
+print("Find {} images.".format(len(all_images)))
+list(map(augmenter.process, all_images))
 
 if __name__ == "__main__":
     all_images = glob.glob(img_source)
@@ -101,4 +95,3 @@ if __name__ == "__main__":
     print("Find {} images.".format(len(all_images)))
     with Pool(cpu_count()) as p:
         out = p.map(augmenter.process, all_images)
-    split_img_2_folders(train_folder + 'hr/', out)
