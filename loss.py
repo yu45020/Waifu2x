@@ -1,9 +1,9 @@
 import torch
 from torch import nn
-from torch.nn.modules.loss import _assert_no_grad
 from torch.nn.functional import _pointwise_loss
+from torch.nn.modules.loss import _assert_no_grad
 
-rgb_weights = [0.29891, 0.58661, 0.11448]
+rgb_weights = [0.29891 * 3, 0.58661 * 3, 0.11448 * 3]
 # RGB have different weights
 # https://github.com/nagadomi/waifu2x/blob/master/train.lua#L109
 use_cuda = torch.cuda.is_available()
@@ -24,3 +24,9 @@ class WeightedMSELoss(nn.MSELoss):
         return _pointwise_loss(lambda a, b: (a - b) ** 2 * self.weights.expand_as(a), torch._C._nn.mse_loss,
                                input_data, target, size_average, reduce)
 
+
+def weighted_mse_loss(input, target, weights):
+    out = (input - target) ** 2
+    out = out * weights.expand_as(out)
+    loss = out.sum(0)  # or sum over whatever dimensions
+    return loss
