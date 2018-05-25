@@ -62,3 +62,4 @@ for i in trange(iteration, ascii=True):
     print("One iteration loss {:.5f}".format(one_ite_loss))
 
 
+torch.save(optimizer.state_dict())
