@@ -1,7 +1,7 @@
-import torch
-from PIL import Image
-from torchvision import transforms
 from itertools import islice, takewhile
+
+import torch
+from torchvision.transforms.functional import to_tensor
 
 
 class ImagePatches:
@@ -12,8 +12,8 @@ class ImagePatches:
         self.seg_size = seg_size
         self.patch_count = []
 
-    def split_img_tensor(self, img_tensor):
-        assert torch.is_tensor(img_tensor)
+    def split_img_tensor(self, img):
+        img_tensor = to_tensor(img).unsqueeze(0)
         batch, channel, self.height, self.width = img_tensor.size()
         all_patches = []
         for w in range(0, self.width, self.seg_size):
@@ -24,7 +24,6 @@ class ImagePatches:
                                    w:min(w + self.seg_size, self.width)])
                 counter += 1
             self.patch_count.append(counter)
-            # all_patches.append(patches)
         return all_patches
 
     def merge_imgs(self, list_img):

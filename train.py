@@ -3,11 +3,10 @@ from torch.optim import Adam
 from tqdm import trange
 
 from dataloader import *
-from loss import *
 from models import *
 from utils import *
 
-rgb_weights = [0.29891, 0.58661, 0.11448]
+rgb_weights = [0.29891 * 3, 0.58661 * 3, 0.11448 * 3]
 # https://github.com/nagadomi/waifu2x/blob/master/train.lua#L109
 
 use_cuda = torch.cuda.is_available()
@@ -24,7 +23,7 @@ img_dataset = ImageData(train_folder,
                         down_sample_method=Image.BICUBIC)
 
 img_data = ImageLoader(img_dataset,
-                       batch_size=10,
+                       batch_size=1,
                        shuffle=True)
 
 criteria = WeightedMSELoss(weights=rgb_weights)

@@ -8,11 +8,13 @@ import torch
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms.functional import to_tensor
+from torchvision.utils import save_image
 
 use_cuda = torch.cuda.is_available()
 FloatTensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 LongTensor = torch.cuda.LongTensor if use_cuda else torch.LongTensor
 Tensor = FloatTensor
+
 
 class ImageData(Dataset):
     def __init__(self,
@@ -33,7 +35,7 @@ class ImageData(Dataset):
         file_names = glob.glob(self.img_folder + '**/*.png', recursive=True)
 
         print("Pre-processing all images into patches.")
-        pool = ThreadPool(3)
+        pool = ThreadPool(4)
         patch_grids = pool.map(self.get_img_patches, file_names)
         pool.close()
         pool.join()
@@ -44,7 +46,7 @@ class ImageData(Dataset):
         return patch_grids
 
     def get_img_patches(self, img_file):
-        img = Image.open(img_file)
+        img = Image.open(img_file).convert("RGB")
         img_grids = self.get_img_grids(img)
         lr_hr_patches = [self.img_augmenter.process(img, grid) for grid in img_grids]
         img.close()
@@ -54,10 +56,16 @@ class ImageData(Dataset):
         # return nested list [ [img_file, position tuple], ...]
         img_w, img_h = img.size
         count_w, count_h = img_w // self.patch_size, img_h // self.patch_size
+        patch_box = []
+        for i in range(count_h):
+            for j in range(count_w):
+                if self.patch_size * (j + 1) <= img_h and self.patch_size * (i + 1) <= img_w:
+                    patch_box.append((self.patch_size * i,
+                                      self.patch_size * j,
+                                      self.patch_size * (i + 1),
+                                      self.patch_size * (j + 1))
+                                     )
 
-        # (left, top, right button) square's 4 lines as coordinate
-        patch_box = [(self.patch_size * i, self.patch_size * j, self.patch_size * (i + 1), self.patch_size * (j + 1))
-                     for i in range(count_w) for j in range(count_h)]
         if len(patch_box) > self.max_path_per_img:
             patch_box = random.sample(patch_box, self.max_path_per_img)
 
@@ -124,16 +132,19 @@ if __name__ == '__main__':
     train_folder = './dataset/train/'
     img_dataset = ImageData(img_folder=train_folder,
                             max_patch_per_img=1000,
-                            patch_size=600,
+                            patch_size=611,
                             shrink_size=2,
                             noise_level=1,
                             down_sample_method=Image.BICUBIC)
 
     img_data = ImageLoader(img_dataset, batch_size=10, shuffle=True)
 
-    b = iter(img_data)
-    a = next(b)
-    lr = a[0]
-    print(lr.size())
-    hr = a[1]
-    print(hr.size())
+    for i, patch in enumerate(img_data):
+        lr, hr = patch
+        save_image(lr, "./dataset/temp/lr_{}.jpeg".format(i), padding=0, nrow=1)
+        save_image(hr, "./dataset/temp/hr_{}.jpeg".format(i), padding=0, nrow=1)
+
+from PIL import Image
+
+a = Image.open("1.jpg").convert("RGB")
+Image.Image.convert()

@@ -63,7 +63,7 @@ class ESPCN_7(nn.Module):
     def forward(self, x):
         x = self.conv(x)
         x = self.up_sampler(x)
-        x = torch.clamp(x, min=0, max=1)
+        # x = torch.clamp(x, min=0, max=1)
         return x
 
     def forward_checkpoint(self, x):
@@ -96,18 +96,22 @@ class ESPCN_7(nn.Module):
 class UpConv_7(nn.Sequential):
 
     def __init__(self):
-        m = [nn.Conv2d(3, 16, 3, 1, 0),
+        m = [nn.Conv2d(3, 16, 3, 1, 1),
              nn.LeakyReLU(0.1, True),
-             nn.Conv2d(16, 32, 3, 1, 0),
+             nn.Conv2d(16, 32, 3, 1, 1),
              nn.LeakyReLU(0.1, True),
-             nn.Conv2d(32, 64, 3, 1, 0),
+             nn.Conv2d(32, 64, 3, 1, 1),
              nn.LeakyReLU(0.1, True),
-             nn.Conv2d(64, 128, 3, 1, 0),
+             nn.Conv2d(64, 128, 3, 1, 1),
              nn.LeakyReLU(0.1, True),
-             nn.Conv2d(128, 128, 3, 1, 0),
+             nn.Conv2d(128, 128, 3, 1, 1),
              nn.LeakyReLU(0.1, True),
-             nn.Conv2d(128, 256, 3, 1, 0),
+             nn.Conv2d(128, 256, 3, 1, 1),
              nn.LeakyReLU(0.1, True),
-             nn.ConvTranspose2d(256, 3, 4, 2, 3, bias=False)
+             nn.ConvTranspose2d(256, 3, 4, 2, 1)
              ]
         super(UpConv_7, self).__init__(*m)
+
+# class DCSCN(nn.Module):
+#     #  Fast and Accurate Image Super Resolution by Deep CNN with Skip Connection and Network in Network
+#     def __init__(self, ):

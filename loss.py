@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-from torch.nn.functional import _pointwise_loss
 from torch.nn.modules.loss import _assert_no_grad
 
 rgb_weights = [0.29891 * 3, 0.58661 * 3, 0.11448 * 3]
@@ -11,22 +10,33 @@ FloatTensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 LongTensor = torch.cuda.LongTensor if use_cuda else torch.LongTensor
 Tensor = FloatTensor
 
-class WeightedMSELoss(nn.MSELoss):
-    def __init__(self, weights=rgb_weights, size_average=True, reduce=True):
-        super(WeightedMSELoss, self).__init__(size_average, reduce)
+
+class WeightedHuberLoss(nn.SmoothL1Loss):
+    def __init__(self, weights=rgb_weights):
+        super(WeightedHuberLoss, self).__init__(size_average=True, reduce=True)
         self.weights = torch.FloatTensor(weights).view(3, 1, 1)
 
     def forward(self, input_data, target):
         _assert_no_grad(target)
-        return self.mse_weighted_loss(input_data, target, size_average=self.size_average, reduce=self.reduce)
-
-    def mse_weighted_loss(self, input_data, target, size_average=True, reduce=True):
-        return _pointwise_loss(lambda a, b: (a - b) ** 2 * self.weights.expand_as(a), torch._C._nn.mse_loss,
-                               input_data, target, size_average, reduce)
+        diff = torch.abs(input_data - target)
+        z = torch.where(diff < 1, 0.5 * torch.pow(diff, 2), (diff - 0.5))
+        out = z * self.weights.expand_as(diff)
+        return out.mean()
 
 
 def weighted_mse_loss(input, target, weights):
     out = (input - target) ** 2
     out = out * weights.expand_as(out)
     loss = out.sum(0)  # or sum over whatever dimensions
-    return loss
+    return loss / out.size(0)
+
+#
+# loss1 = WeightedHuberLoss(weights=[1,1,1])
+# mse = nn.SmoothL1Loss()
+# a = torch.randn((10,3,4,4))*10
+# b = torch.randn((10,3,4,4))*5
+#
+# mse(a,b)
+#
+# c = loss1(a,b)
+# c.mean()
