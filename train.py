@@ -3,6 +3,7 @@ from torch.optim import Adam
 from tqdm import trange
 
 from dataloader import *
+from loss import WeightedHuberLoss
 from models import *
 from utils import *
 
@@ -17,20 +18,28 @@ Tensor = FloatTensor
 train_folder = './dataset/train/'
 img_dataset = ImageData(train_folder,
                         max_patch_per_img=1000,
-                        patch_size=1920,
+                        patch_size=96,
                         shrink_size=2,
                         noise_level=1,
-                        down_sample_method=Image.BICUBIC)
+                        down_sample_method=Image.BICUBIC,
+                        up_sample_method=Image.LANCZOS)
 
 img_data = ImageLoader(img_dataset,
-                       batch_size=1,
+                       up_sample=True,
+                       batch_size=20,
                        shuffle=True)
 
-criteria = WeightedMSELoss(weights=rgb_weights)
-model = ESPCN_7(in_channels=3, upscale=2)
+criteria = WeightedHuberLoss(weights=rgb_weights)
+model = DCSCN(color_channel=3,
+              up_scale=2,
+              feature_layers=12,
+              first_feature_filters=96,
+              last_feature_filters=48,
+              reconstruction_filters=64,
+              up_sampler_filters=32)
 
 learning_rate = 5e-4
-weight_decay = 0
+weight_decay = 1e-4
 optimizer = Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay, amsgrad=True)
 
 if use_cuda:
@@ -44,12 +53,14 @@ counter = 0
 for i in trange(iteration, ascii=True):
     batch_loss = []
     for batch in img_data:
-        lr_img, hr_img = batch
+        lr_img, lr_img_up, hr_img = batch
         model.zero_grad()
 
         outputs = model.forward(lr_img)
+        outputs += lr_img_up
         loss = criteria(outputs, hr_img)
         loss.backward()
+        nn.utils.clip_grad_value_(model.parameters(), 5)
         optimizer.step()
 
         counter += 1
@@ -62,3 +73,4 @@ for i in trange(iteration, ascii=True):
 
 
 torch.save(optimizer.state_dict())
+model.modules()

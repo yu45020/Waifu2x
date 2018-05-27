@@ -23,12 +23,14 @@ class ImageData(Dataset):
                  patch_size,
                  shrink_size,
                  noise_level,
-                 down_sample_method):
+                 down_sample_method,
+                 up_sample_method=None):
+
         self.img_folder = img_folder
         self.max_path_per_img = max_patch_per_img
         self.patch_size = patch_size
 
-        self.img_augmenter = ImageAugment(shrink_size, noise_level, down_sample_method)
+        self.img_augmenter = ImageAugment(shrink_size, noise_level, down_sample_method, up_sample_method)
         self.patch_grids = self.get_img_patch_grids()
 
     def get_img_patch_grids(self):
@@ -82,12 +84,18 @@ class ImageData(Dataset):
 
 
 class ImageAugment:
-    def __init__(self, shrink_size=2, noise_level=1, down_sample_method=Image.BICUBIC):
+    def __init__(self,
+                 shrink_size=2,
+                 noise_level=1,
+                 down_sample_method=Image.BICUBIC,
+                 up_sample_method=Image.LANCZOS
+                 ):
         # noise_level (int): 0: no noise; 1: 90% quality; 2:80%
 
         self.noise_level = noise_level
         self.shrink_size = shrink_size
         self.down_sample_method = down_sample_method
+        self.up_sample_method = up_sample_method
 
     def shrink_img(self, hr_img):
         img_w, img_h = tuple(map(lambda x: int(x / self.shrink_size), hr_img.size))
@@ -108,10 +116,15 @@ class ImageAugment:
         lr_patch = self.add_jpeg_noise(lr_patch)
         return lr_patch, hr_patch
 
+    def up_sample(self, img):
+        width, height = img.size
+        return img.resize((2 * width, 2 * height), resample=self.up_sample_method)
+
 
 class ImageLoader(DataLoader):
-    def __init__(self, dataset, batch_size=1, shuffle=True, num_workers=0):
+    def __init__(self, dataset, up_sample=False, batch_size=1, shuffle=True, num_workers=0):
         self.dataset = dataset
+        self.up_sample = up_sample
         super(ImageLoader, self).__init__(dataset, batch_size, shuffle,
                                           collate_fn=self.batch_collector,
                                           num_workers=num_workers)
@@ -125,7 +138,15 @@ class ImageLoader(DataLoader):
         if use_cuda:
             lr_img = lr_img.cuda()
             hr_img = hr_img.cuda(async=True)
-        return lr_img, hr_img
+        if self.up_sample:
+            lr_img_up = [self.dataset.img_augmenter.up_sample(i[0]) for i in lr_hr_patch]
+            lr_img_up = [to_tensor(i) for i in lr_img_up]
+            lr_img_up = torch.stack(lr_img_up, dim=0).contiguous()
+            if use_cuda:
+                lr_img_up = lr_img_up.cuda()
+                return lr_img, lr_img_up, hr_img
+        else:
+            return lr_img, hr_img
 
 
 if __name__ == '__main__':
@@ -144,7 +165,3 @@ if __name__ == '__main__':
         save_image(lr, "./dataset/temp/lr_{}.jpeg".format(i), padding=0, nrow=1)
         save_image(hr, "./dataset/temp/hr_{}.jpeg".format(i), padding=0, nrow=1)
 
-from PIL import Image
-
-a = Image.open("1.jpg").convert("RGB")
-Image.Image.convert()
