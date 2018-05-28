@@ -185,8 +185,103 @@ class UpConv_7(nn.Sequential):
 
 ````
  
+ ###
+ DCSCN seems very interesting as it has relatively quick forward computation, and the result is clearly better than Bicubic's after 10 epochs.
+ 
+ ```python
+
+class DCSCN(nn.Module):
+    def __init__(self,
+                 color_channel,
+                 up_scale,
+                 feature_layers,
+                 first_feature_filters,
+                 last_feature_filters,
+                 reconstruction_filters,
+                 up_sampler_filters,
+                 dropout_rate=0.02
+                 ):
+        super(DCSCN, self).__init__()
+        self.total_feature_channels = 0
+        self.upscale = up_scale
+        self.dropout_rate = dropout_rate
+        self.act_fn = nn.SELU(inplace=True)
+        self.feature_block = self.make_feature_extraction_block(color_channel,
+                                                                feature_layers,
+                                                                first_feature_filters,
+                                                                last_feature_filters)
+
+        self.reconstruction_block = self.make_reconstruction_block(reconstruction_filters)
+        self.up_sampler = self.make_upsampler(reconstruction_filters * 2, up_sampler_filters, color_channel)
+        # self.init_params()
+
+    def init_params(self):
+        for i in self.modules():
+            if isinstance(i, nn.Conv2d):
+                nn.init.normal_(i.weight, mean=0, std=1 / sqrt(i.out_channels))
+
+    def conv_block(self, in_channel, out_channel, kernel_size):
+        m = [nn.Conv2d(in_channel, out_channel, kernel_size=kernel_size, padding=(kernel_size - 1) // 2),
+             nn.AlphaDropout(self.dropout_rate),
+             self.act_fn]
+        return nn.Sequential(*m)
+
+    def make_feature_extraction_block(self, color_channel, num_layers, first_filters, last_filters):
+        # input layer
+        feature_block = [self.conv_block(color_channel, first_filters, 3)]
+        # exponential decay
+        # rest layer
+        alpha_rate = log(first_filters / last_filters) / (num_layers - 1)
+        filter_nums = [round(first_filters * exp(-alpha_rate * i)) for i in range(num_layers)]
+        layer_filters = [[filter_nums[i], filter_nums[i + 1], 3] for i in range(num_layers - 1)]
+        feature_block.extend([self.conv_block(*x) for x in layer_filters])
+        self.total_feature_channels = sum(filter_nums)
+        return nn.Sequential(*feature_block)
+
+    def make_reconstruction_block(self, num_filters):
+        A = self.conv_block(self.total_feature_channels, num_filters, 1)
+        B1 = self.conv_block(self.total_feature_channels, num_filters // 2, 1)
+        B2 = self.conv_block(num_filters // 2, num_filters, 3)
+        B = nn.Sequential(*[B1, B2])
+        return nn.Sequential(*[A, B])
+
+    def make_upsampler(self, in_channel, out_channel, color_channel):
+        out = out_channel * self.upscale ** 2
+        m1 = nn.Sequential(nn.Conv2d(in_channel, out, kernel_size=3, padding=1),
+                           nn.AlphaDropout(self.dropout_rate))
+        m2 = nn.PixelShuffle(self.upscale)
+        m3 = nn.Sequential(nn.Conv2d(out_channel, color_channel, kernel_size=3, padding=1, bias=False),
+                           nn.AlphaDropout(self.dropout_rate))
+        return nn.Sequential(*[m1, m2, m3])
+
+    def forward(self, x):
+        feature = []
+        for layer in self.feature_block.children():
+            x = layer(x)
+            feature.append(x)
+        feature = torch.cat(feature, dim=1)
+        reconstruction = [layer(feature) for layer in self.reconstruction_block.children()]
+        reconstruction = torch.cat(reconstruction, dim=1)
+        x = self.up_sampler(reconstruction)
+        return x
+
+    def forward_checkpoint(self, x):
+        feature = []
+        for layer in self.feature_block.children():
+            x = checkpoint(layer, x)
+            feature.append(x)
+        feature = torch.cat(feature, dim=1)
+        reconstruction = [checkpoint(layer, feature) for layer in self.reconstruction_block.children()]
+        reconstruction = torch.cat(reconstruction, dim=1)
+        x = checkpoint(self.up_sampler, reconstruction)
+        return x
+        
+```
+ 
  
  ## TODO: 
+ * Rewrite: split image into pieces and dump in a model, then merge the output without "grids" effect. 
+ 
  * [DRRN](http://cvlab.cse.msu.edu/pdfs/Tai_Yang_Liu_CVPR2017.pdf) (planned)
  (Note: DRRN is not realistic for CPU only usage. A modified version might be used.)
  * and find some interesting paper

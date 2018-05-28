@@ -24,12 +24,13 @@ class ImageData(Dataset):
                  shrink_size,
                  noise_level,
                  down_sample_method,
-                 up_sample_method=None):
+                 up_sample_method=None,
+                 color_mod='RGB'):
 
         self.img_folder = img_folder
         self.max_path_per_img = max_patch_per_img
         self.patch_size = patch_size
-
+        self.color_mod = color_mod
         self.img_augmenter = ImageAugment(shrink_size, noise_level, down_sample_method, up_sample_method)
         self.patch_grids = self.get_img_patch_grids()
 
@@ -48,7 +49,7 @@ class ImageData(Dataset):
         return patch_grids
 
     def get_img_patches(self, img_file):
-        img = Image.open(img_file).convert("RGB")
+        img = Image.open(img_file)
         img_grids = self.get_img_grids(img)
         lr_hr_patches = [self.img_augmenter.process(img, grid) for grid in img_grids]
         img.close()
@@ -65,8 +66,7 @@ class ImageData(Dataset):
                     patch_box.append((self.patch_size * i,
                                       self.patch_size * j,
                                       self.patch_size * (i + 1),
-                                      self.patch_size * (j + 1))
-                                     )
+                                      self.patch_size * (j + 1)))
 
         if len(patch_box) > self.max_path_per_img:
             patch_box = random.sample(patch_box, self.max_path_per_img)
@@ -78,9 +78,15 @@ class ImageData(Dataset):
 
     def __getitem__(self, index):
         patch = self.patch_grids[index]
-        return patch
-        # lr_patch, hr_patch = self.img_augmenter.process(patch)
-        # return to_tensor(lr_patch), to_tensor(hr_patch)
+        if self.color_mod == 'RGB':
+            lr_img = patch[0].convert("RGB")
+            hr_img = patch[1].convert("RGB")
+        elif self.color_mod == 'YCbCr':
+            lr_img, _, _ = patch[0].convert('YCbCr').split()
+            hr_img, _, _ = patch[1].convert('YCbCr').split()
+        else:
+            raise KeyError('Either RGB or YCbCr')
+        return [lr_img, hr_img]
 
 
 class ImageAugment:
@@ -88,7 +94,7 @@ class ImageAugment:
                  shrink_size=2,
                  noise_level=1,
                  down_sample_method=Image.BICUBIC,
-                 up_sample_method=Image.LANCZOS
+                 up_sample_method=Image.BICUBIC
                  ):
         # noise_level (int): 0: no noise; 1: 90% quality; 2:80%
 
@@ -125,7 +131,9 @@ class ImageLoader(DataLoader):
     def __init__(self, dataset, up_sample=False, batch_size=1, shuffle=True, num_workers=0):
         self.dataset = dataset
         self.up_sample = up_sample
-        super(ImageLoader, self).__init__(dataset, batch_size, shuffle,
+        super(ImageLoader, self).__init__(dataset,
+                                          batch_size,
+                                          shuffle,
                                           collate_fn=self.batch_collector,
                                           num_workers=num_workers)
 
@@ -135,18 +143,17 @@ class ImageLoader(DataLoader):
         lr_img = torch.stack(lr_img, dim=0).contiguous()
         hr_img = [to_tensor(i[1]) for i in lr_hr_patch]
         hr_img = torch.stack(hr_img, dim=0).contiguous()
-        if use_cuda:
-            lr_img = lr_img.cuda()
-            hr_img = hr_img.cuda(async=True)
+
         if self.up_sample:
             lr_img_up = [self.dataset.img_augmenter.up_sample(i[0]) for i in lr_hr_patch]
             lr_img_up = [to_tensor(i) for i in lr_img_up]
             lr_img_up = torch.stack(lr_img_up, dim=0).contiguous()
-            if use_cuda:
-                lr_img_up = lr_img_up.cuda()
-                return lr_img, lr_img_up, hr_img
-        else:
-            return lr_img, hr_img
+            hr_img = hr_img - lr_img_up  # learn the residual parts
+        if use_cuda:
+            lr_img = lr_img.cuda()
+            hr_img = hr_img.cuda(async=True)
+
+        return lr_img, hr_img
 
 
 if __name__ == '__main__':
@@ -164,4 +171,3 @@ if __name__ == '__main__':
         lr, hr = patch
         save_image(lr, "./dataset/temp/lr_{}.jpeg".format(i), padding=0, nrow=1)
         save_image(hr, "./dataset/temp/hr_{}.jpeg".format(i), padding=0, nrow=1)
-

@@ -137,7 +137,7 @@ class DCSCN(nn.Module):
 
         self.reconstruction_block = self.make_reconstruction_block(reconstruction_filters)
         self.up_sampler = self.make_upsampler(reconstruction_filters * 2, up_sampler_filters, color_channel)
-        self.init_params()
+        # self.init_params()
 
     def init_params(self):
         for i in self.modules():
@@ -151,13 +151,13 @@ class DCSCN(nn.Module):
         return nn.Sequential(*m)
 
     def make_feature_extraction_block(self, color_channel, num_layers, first_filters, last_filters):
-        # exponential decay
         # input layer
         feature_block = [self.conv_block(color_channel, first_filters, 3)]
+        # exponential decay
         # rest layer
-        alpha_rate = log(first_filters / last_filters) / (num_layers - 2)
-        filter_nums = [round(first_filters * exp(-alpha_rate * i)) for i in range(num_layers - 1)]
-        layer_filters = [[filter_nums[i], filter_nums[i + 1], 3] for i in range(num_layers - 2)]
+        alpha_rate = log(first_filters / last_filters) / (num_layers - 1)
+        filter_nums = [round(first_filters * exp(-alpha_rate * i)) for i in range(num_layers)]
+        layer_filters = [[filter_nums[i], filter_nums[i + 1], 3] for i in range(num_layers - 1)]
         feature_block.extend([self.conv_block(*x) for x in layer_filters])
         self.total_feature_channels = sum(filter_nums)
         return nn.Sequential(*feature_block)
@@ -199,3 +199,15 @@ class DCSCN(nn.Module):
         reconstruction = torch.cat(reconstruction, dim=1)
         x = checkpoint(self.up_sampler, reconstruction)
         return x
+
+
+if __name__ == '__main__':
+    model = DCSCN(color_channel=1,
+                  up_scale=2,
+                  feature_layers=12,
+                  first_feature_filters=196,
+                  last_feature_filters=48,
+                  reconstruction_filters=64,
+                  up_sampler_filters=32,
+                  dropout_rate=0)
+    len(model.feature_block)
