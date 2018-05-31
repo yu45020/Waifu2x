@@ -15,52 +15,9 @@ The loss function is weighted MSE with weights [0.29891, 0.58661, 0.11448] on RG
  
  High resolution images are loaded all at once in memory and cut into patches. Low resolution patches are also saved in  memory. They are then dumped into PyTorch's dataloader and feed into the neural net. 
  
- ````python
-def get_img_grids(self, img):
-        # return nested list [ [img_file, position tuple], ...]
-        img_w, img_h = img.size
-        count_w, count_h = img_w // self.patch_size, img_h // self.patch_size
 
-        # (left, top, right button) square's 4 lines as coordinate
-        patch_box = [(self.patch_size * i, self.patch_size * j, self.patch_size * (i + 1), self.patch_size * (j + 1))
-                     for i in range(count_w) for j in range(count_h)]
-        if len(patch_box) > self.max_path_per_img:
-            patch_box = random.sample(patch_box, self.max_path_per_img)
-
-        return patch_box    
-        
-````
  
 Low resolution images are shrunk by BICUBIC and  re-encoded into JPEG format, which is very common for low quality Anime style images. Noise factor is added via changing the quality value when re-encoding image. 
- 
- ```python
-class ImageAugment:
-    def __init__(self, shrink_size=2, noise_level=1, down_sample_method=Image.BICUBIC):
-        # noise_level (int): 0: no noise; 1: 90% quality; 2:80%
-
-        self.noise_level = noise_level
-        self.shrink_size = shrink_size
-        self.down_sample_method = down_sample_method
-
-    def shrink_img(self, hr_img):
-        img_w, img_h = tuple(map(lambda x: int(x / self.shrink_size), hr_img.size))
-        lr_img = hr_img.resize((img_w, img_h), self.down_sample_method)
-        return lr_img
-
-    def add_jpeg_noise(self, hr_img):
-        quality = 100 - 10 * self.noise_level
-        lr_img = BytesIO()
-        hr_img.save(lr_img, format='JPEG', quality=quality)
-        lr_img.seek(0)
-        lr_img = Image.open(lr_img)
-        return lr_img
-
-    def process(self, hr_patch, grid):
-        hr_patch = hr_patch.crop(grid)
-        lr_patch = self.shrink_img(hr_patch)
-        lr_patch = self.add_jpeg_noise(lr_patch)
-        return lr_patch, hr_patch
-```
  
  ## Models
  
