@@ -24,14 +24,13 @@ class ImageData(Dataset):
                  shrink_size,
                  noise_level,
                  down_sample_method,
-                 up_sample_method=None,
                  color_mod='RGB'):
 
         self.img_folder = img_folder
         self.max_path_per_img = max_patch_per_img
         self.patch_size = patch_size
         self.color_mod = color_mod
-        self.img_augmenter = ImageAugment(shrink_size, noise_level, down_sample_method, up_sample_method)
+        self.img_augmenter = ImageAugment(shrink_size, noise_level, down_sample_method)
         self.patch_grids = self.get_img_patch_grids()
 
     def get_img_patch_grids(self):
@@ -93,15 +92,13 @@ class ImageAugment:
     def __init__(self,
                  shrink_size=2,
                  noise_level=1,
-                 down_sample_method=Image.BICUBIC,
-                 up_sample_method=Image.BICUBIC
+                 down_sample_method=Image.BICUBIC
                  ):
         # noise_level (int): 0: no noise; 1: 90% quality; 2:80%
 
         self.noise_level = noise_level
         self.shrink_size = shrink_size
         self.down_sample_method = down_sample_method
-        self.up_sample_method = up_sample_method
 
     def shrink_img(self, hr_img):
         img_w, img_h = tuple(map(lambda x: int(x / self.shrink_size), hr_img.size))
@@ -122,37 +119,41 @@ class ImageAugment:
         lr_patch = self.add_jpeg_noise(lr_patch)
         return lr_patch, hr_patch
 
-    def up_sample(self, img):
+    def up_sample(self, img, resample):
         width, height = img.size
-        return img.resize((2 * width, 2 * height), resample=self.up_sample_method)
+        return img.resize((self.shrink_size * width, self.shrink_size * height), resample=resample)
 
 
 class ImageLoader(DataLoader):
-    def __init__(self, dataset, up_sample=False, batch_size=1, shuffle=True, num_workers=0):
+    def __init__(self, dataset, up_sample=Image.BILINEAR,
+                 batch_size=1, shuffle=True):
         self.dataset = dataset
         self.up_sample = up_sample
         super(ImageLoader, self).__init__(dataset,
                                           batch_size,
                                           shuffle,
-                                          collate_fn=self.batch_collector,
-                                          num_workers=num_workers)
+                                          collate_fn=self.batch_collector)
+
+
 
     def batch_collector(self, batch):
         lr_hr_patch = batch
         lr_img = [to_tensor(i[0]) for i in lr_hr_patch]
         lr_img = torch.stack(lr_img, dim=0).contiguous()
+
         hr_img = [to_tensor(i[1]) for i in lr_hr_patch]
         hr_img = torch.stack(hr_img, dim=0).contiguous()
-
-        if self.up_sample:
-            lr_img_up = [self.dataset.img_augmenter.up_sample(i[0]) for i in lr_hr_patch]
-            lr_img_up = [to_tensor(i) for i in lr_img_up]
-            lr_img_up = torch.stack(lr_img_up, dim=0).contiguous()
-            hr_img = hr_img - lr_img_up  # learn the residual parts
         if use_cuda:
             lr_img = lr_img.cuda()
             hr_img = hr_img.cuda(async=True)
 
+        if self.up_sample is not None:
+            lr_img_up = [self.dataset.img_augmenter.up_sample(i[0], self.up_sample) for i in lr_hr_patch]
+            lr_img_up = [to_tensor(i) for i in lr_img_up]
+            lr_img_up = torch.stack(lr_img_up, dim=0).contiguous()
+            if use_cuda:
+                lr_img_up = lr_img_up.cuda(async=True)
+            lr_img = (lr_img, lr_img_up)
         return lr_img, hr_img
 
 

@@ -1,4 +1,5 @@
 import numpy as np
+from torch.nn.utils import clip_grad_norm_
 from torch.optim import Adam
 from tqdm import trange
 
@@ -56,8 +57,16 @@ model = DCSCN(color_channel=3,
               first_feature_filters=196,
               last_feature_filters=48,
               reconstruction_filters=64,
-              up_sampler_filters=32,
-              dropout_rate=0)
+              up_sampler_filters=32)
+
+pre_train = torch.load("./model_results/DCSCN_model_135epos.pt", map_location='cpu')
+new = model.state_dict()
+a = {}
+for i, j in zip(pre_train, new):
+    a[j] = pre_train[i]
+
+model.load_state_dict(a, strict=False)
+torch.save(model.state_dict(), "./model_results/DCSCN_model_135epos_2.pt")
 
 learning_rate = 5e-3
 weight_decay = 0
@@ -111,3 +120,15 @@ for i in ibar:
 
 torch.save(model.state_dict(), 'DCSCN_10epos.pt')
 torch.save(optimizer.state_dict(), 'DCSCN_optim_10epos.pt')
+
+import numpy as np
+from PIL import Image
+
+img = Image.open('2.png')
+img = img.resize((3, 3))
+np.array(img)[1]
+img2 = img.resize((6, 6), Image.BILINEAR)
+np.array(img2)[1]
+a = next(iter(model.parameters()))
+a.grad
+clip_grad_norm_
