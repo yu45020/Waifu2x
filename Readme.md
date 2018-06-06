@@ -44,7 +44,6 @@ A selection unit is added in between of convolutional filters.  Details on the s
  
  
  ## TODO: 
- * Rewrite: split image into pieces and dump in a model, then merge the output without "grids" effect. 
  
  * [DRRN](http://cvlab.cse.msu.edu/pdfs/Tai_Yang_Liu_CVPR2017.pdf) (planned)
  (Note: DRRN is not realistic for CPU only usage. A modified version might be used.)

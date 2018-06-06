@@ -1,48 +1,40 @@
-import time
-from multiprocessing import cpu_count, Pool
-
+from skimage.color import rgba2rgb
+from skimage.io import imread
+from skimage.measure import compare_psnr, compare_ssim
 from torchvision.utils import save_image
-from tqdm import tqdm
 
-from models import *
 from utils import *
 
-if __name__ == '__main__':
-    pre_trained = './model_results/DCSCN_model_55epos.pt'
-    model = DCSCN(color_channel=3,
-                  up_scale=2,
-                  feature_layers=12,
-                  first_feature_filters=196,
-                  last_feature_filters=48,
-                  reconstruction_filters=64,
-                  up_sampler_filters=32,
-                  dropout_rate=0)
+pre_trained = "model_results/DCSCN_model_387epos.pt"
+model = DCSCN(color_channel=3,
+              up_scale=2,
+              feature_layers=12,
+              first_feature_filters=196,
+              last_feature_filters=48,
+              reconstruction_filters=128,
+              up_sampler_filters=32)
+model.load_state_dict(torch.load(pre_trained, map_location='cpu'))
+lr = "./benchmark/miku_small.png"
+img = Image.open(lr).convert("RGB")
+img_up = img.resize((2 * img.size[0], 2 * img.size[1]), Image.BILINEAR)
+img = to_tensor(img).unsqueeze(0)
+img_up = to_tensor(img_up).unsqueeze(0)
+out = model.forward_checkpoint((img, img_up))
+save_image(out, './benchmark/miku_dcscn.png')
 
-    model.load_state_dict(torch.load(pre_trained, map_location='cpu'))
-    model = model.eval()
-    model = Check()
-    img_splitter = ImagePatches(seg_size=17, upscale=2)
-    img = Image.open("2_half.jpeg").convert("RGB")
-    img_pieces = img_splitter.split_img_tensor(img)
+dcscn = imread("./benchmark/miku_dcscn.png")
+hr = imread('./benchmark/miku_small_hq2x.png')
+hr = rgba2rgb(hr)
+waifu = imread("./benchmark/miku_small_waifu2x.png")
 
-    start_t = time.time()
-    with Pool(cpu_count()) as p:
-        out = p.map(model.forward_checkpoint, tqdm(img_pieces, ascii=True, unit='patch'))
+hr.shape
+dcscn.shape
 
-    out = img_splitter.merge_imgs(out)
+compare_psnr(hr, dcscn / 255)
+compare_ssim(hr, dcscn / 255, multichannel=True)
 
-    img_up = img.resize((2 * img.size[0], 2 * img.size[1]), Image.BILINEAR)
+compare_psnr(hr, waifu / 255)
+compare_ssim(hr, waifu / 255, multichannel=True)
 
-    img_up = to_tensor(img_up).unsqueeze(0)
-    final = out + img_up
-    save_image(out, 'residual.png', padding=0)
-    save_image(final, 'final.png', padding=0)
-    end_t = time.time()
-    print("Runtime :{}".format(end_t - start_t))
-
-#
-# save_image(out, 'out.png')
-# img = Image.open('residual.png')
-# from torchvision.transforms.functional import adjust_saturation, adjust_brightness,adjust_contrast
-# img_2 = adjust_contrast(img, 10)
-# img_2.save("residual_2.png")
+waifu = to_tensor(waifu).unsqueeze(0)
+save_image(torch.cat([out, waifu]), './benchmark/compare.png')

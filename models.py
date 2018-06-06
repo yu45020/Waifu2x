@@ -1,5 +1,6 @@
 import warnings
 from collections import OrderedDict
+from contextlib import contextmanager
 from math import sqrt, exp, log
 
 import torch
@@ -9,103 +10,51 @@ from torch.utils.checkpoint import checkpoint
 warnings.simplefilter('ignore')
 
 
-class Conv2dLayer(nn.Sequential):
-    def __init__(self, in_channels, out_channels, kernel_size, activation, selection_unit=False):
-        m = [nn.Conv2d(in_channels, out_channels, kernel_size, stride=1, padding=(kernel_size - 1) // 2),
-             activation]
-        if selection_unit:
-            m.append(SelectionUnit(out_channels))
-        super(Conv2dLayer, self).__init__(*m)
-
-
-class SelectionUnit(nn.Sequential):
-    # A Deep Convolutional Neural Network with Selection Units for Super-Resolution
-    def __init__(self, n_feats):
-        m = [nn.Conv2d(n_feats, n_feats, kernel_size=1, padding=0),
-             nn.Sigmoid()]
-        super(SelectionUnit, self).__init__(*m)
-
-
-class UpSampler(nn.Sequential):
-    def __init__(self, upscaler, n_feats, out_channels, kernel_size, selection_unit=False):
-        m = [nn.Conv2d(n_feats, out_channels * upscaler ** 2, kernel_size, padding=(kernel_size - 1) // 2),
-             nn.PixelShuffle(upscaler)]
-        if selection_unit:
-            su = [nn.SELU(inplace=True),
-                  SelectionUnit(out_channels)]
-            m += su
-        super(UpSampler, self).__init__(*m)
-
-
-class ESPCN_7(nn.Module):
-    # modified from ESPN
-    def __init__(self, in_channels=3, upscale=2):
-        super(ESPCN_7, self).__init__()
-        out_channel = 256
-        self.conv = self.conv_block(in_channels, out_channel, selection_unit=True)
-        self.up_sampler = UpSampler(upscale, out_channel, in_channels, 3, selection_unit=False)
-
-    def forward(self, x):
-        x = self.conv(x)
-        x = self.up_sampler(x)
-        # x = torch.clamp(x, min=0, max=1)
-        return x
-
-    def forward_checkpoint(self, x):
-        # intermediate outputs will be dropped to save memory
-        x = checkpoint(self.conv, x)
-        x = checkpoint(self.up_sampler, x)
-        x = torch.clamp(x, min=0, max=1)
-        return x
-
-    @staticmethod
-    def conv_block(in_channels, out_channels, selection_unit=False):
-        m = [Conv2dLayer(in_channels, 64, 3, nn.SELU(inplace=True), selection_unit=selection_unit),
-             Conv2dLayer(64, 64, 3, nn.SELU(inplace=True), selection_unit=selection_unit),
-             Conv2dLayer(64, 128, 3, nn.SELU(inplace=True), selection_unit=selection_unit),
-             Conv2dLayer(128, 128, 3, nn.SELU(inplace=True), selection_unit=selection_unit),
-             Conv2dLayer(128, 256, 3, nn.SELU(inplace=True), selection_unit=selection_unit),
-             Conv2dLayer(256, out_channels, 3, nn.SELU(inplace=True), selection_unit=selection_unit)
-             ]
-        return nn.Sequential(*m)
-
-    @staticmethod
-    def conv_block2(in_channels, out_channels, selection_unit=False):
-        m = [Conv2dLayer(in_channels, 64, 5, nn.SELU(inplace=True), selection_unit=selection_unit),
-             Conv2dLayer(64, 64, 3, nn.SELU(inplace=True), selection_unit=selection_unit),
-             Conv2dLayer(64, out_channels, 3, nn.SELU(inplace=True), selection_unit=selection_unit)
-             ]
-        return nn.Sequential(*m)
-
-
-class UpConv_7(nn.Sequential):
+class BaseModule(nn.Module):
     def __init__(self):
-        m = [nn.Conv2d(3, 16, 3, 1, 1),
-             nn.LeakyReLU(0.1, True),
-             nn.Conv2d(16, 32, 3, 1, 1),
-             nn.LeakyReLU(0.1, True),
-             nn.Conv2d(32, 64, 3, 1, 1),
-             nn.LeakyReLU(0.1, True),
-             nn.Conv2d(64, 128, 3, 1, 1),
-             nn.LeakyReLU(0.1, True),
-             nn.Conv2d(128, 128, 3, 1, 1),
-             nn.LeakyReLU(0.1, True),
-             nn.Conv2d(128, 256, 3, 1, 1),
-             nn.LeakyReLU(0.1, True),
-             nn.ConvTranspose2d(256, 3, 4, 2, 1)
-             ]
-        super(UpConv_7, self).__init__(*m)
+        self.act_fn = None
+        super(BaseModule, self).__init__()
+
+    def load_state_dict(self, state_dict, strict=True):
+        own_state = self.state_dict()
+        for name, param in state_dict.items():
+            if name in own_state:
+                try:
+                    own_state[name].copy_(param.data)
+                except Exception as e:
+                    print("Parameter {} fails to load.".format(name))
+                    print("-----------------------------------------")
+                    print(e)
+            else:
+                print("Parameter {} is not in the model. ".format(name))
+
+    @contextmanager
+    def set_activation_inplace(self):
+        if hasattr(self.act_fn, 'inplace'):
+            # save memory
+            self.act_fn.inplace = True
+            yield
+            self.act_fn.inplace = False
+        else:
+            yield
+
+    def total_parameters(self):
+        return [i.data for i in self.parameters()]
+
+    def forward(self, *x):
+        raise NotImplementedError
 
 
-class DCSCN(nn.Module):
+class DCSCN(BaseModule):
+    # https://github.com/jiny2001/dcscn-super-resolution
     def __init__(self,
-                 color_channel,
-                 up_scale,
-                 feature_layers,
-                 first_feature_filters,
-                 last_feature_filters,
-                 reconstruction_filters,
-                 up_sampler_filters
+                 color_channel=3,
+                 up_scale=2,
+                 feature_layers=12,
+                 first_feature_filters=196,
+                 last_feature_filters=48,
+                 reconstruction_filters=128,
+                 up_sampler_filters=32
                  ):
         super(DCSCN, self).__init__()
         self.total_feature_channels = 0
@@ -141,9 +90,10 @@ class DCSCN(nn.Module):
         # input layer
         feature_block = [("Feature 1", self.conv_block(color_channel, first_filters, 3))]
         # exponential decay
-        # rest layer
+        # rest layers
         alpha_rate = log(first_filters / last_filters) / (num_layers - 1)
         filter_nums = [round(first_filters * exp(-alpha_rate * i)) for i in range(num_layers)]
+
         self.total_feature_channels = sum(filter_nums)
 
         layer_filters = [[filter_nums[i], filter_nums[i + 1], 3] for i in range(num_layers - 1)]
@@ -172,6 +122,7 @@ class DCSCN(nn.Module):
         return nn.Sequential(m)
 
     def forward(self, x):
+        # residual learning
         lr, lr_up = x
         feature = []
         for layer in self.feature_block.children():
@@ -186,65 +137,17 @@ class DCSCN(nn.Module):
         return lr + lr_up
 
     def forward_checkpoint(self, x):
+        # wrap forward computation in check_point function to save memory
         lr, lr_up = x
         feature = []
-        for layer in self.feature_block.children():
-            lr = checkpoint(layer, lr)
-            feature.append(lr)
-        feature = torch.cat(feature, dim=1)
-        reconstruction = [checkpoint(layer, feature) for layer in self.reconstruction_block.children()]
-        reconstruction.append(lr)
-        lr.size()
-        reconstruction = torch.cat(reconstruction, dim=1)
-        lr = checkpoint(self.up_sampler, reconstruction)
+        with self.set_activation_inplace():  # if possible, turn activation to inplace computation
+            for layer in self.feature_block.children():
+                lr = checkpoint(layer, lr)
+                feature.append(lr)
+            feature = torch.cat(feature, dim=1)
+            reconstruction = [checkpoint(layer, feature) for layer in self.reconstruction_block.children()]
+            reconstruction = torch.cat(reconstruction, dim=1)
+            lr = checkpoint(self.up_sampler, reconstruction)
         lr += lr_up
         return lr
 
-    def load_state_dict(self, state_dict, strict=True):
-        own_state = self.state_dict()
-        for name, param in state_dict.items():
-            if name in own_state:
-                try:
-                    own_state[name].copy_(param.data)
-                except Exception as e:
-                    print("Parameter {} fails to load.".format(name))
-                    print("-----------------------------------------")
-                    print(e)
-            else:
-                print("Parameter {} is not in the model. ".format(name))
-
-
-if __name__ == '__main__':
-    model = DCSCN(color_channel=3,
-                  up_scale=2,
-                  feature_layers=12,
-                  first_feature_filters=196,
-                  last_feature_filters=48,
-                  reconstruction_filters=64,
-                  up_sampler_filters=32)
-
-    len(model.feature_block)
-    img = torch.randn(4, 3, 10, 10)
-    img_up = torch.randn(4, 3, 20, 20)
-    import time
-
-    a = time.time()
-    out = model.forward((img, img_up))
-    b = time.time()
-    print(b - a)
-
-    model_upcon7 = UpConv_7()
-    model = DCSCN(color_channel=3,
-                  up_scale=2,
-                  feature_layers=8,
-                  first_feature_filters=96,
-                  last_feature_filters=48,
-                  reconstruction_filters=64,
-                  up_sampler_filters=32)
-    sum([i.numel() for i in model.parameters()])
-    a = time.time()
-    # out = model.forward_checkpoint((img, img_up))
-    out = model_upcon7.forward(img)
-    print(time.time() - a)
-    c = [i.data for i in model.parameters()]
-    torch.mean(c[0])
