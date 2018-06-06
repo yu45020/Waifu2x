@@ -4,7 +4,6 @@ from torch.optim import Adam
 from tqdm import trange
 
 from dataloader import *
-from models import *
 from utils import *
 
 # rgb_weights = [0.29891 * 3, 0.58661 * 3, 0.11448 * 3]
@@ -26,14 +25,14 @@ img_dataset = ImageData(train_folder,
                         patch_size=96,
                         shrink_size=2,
                         noise_level=1,
-                        down_sample_method=Image.BILINEAR,
-                        up_sample_method=Image.BILINEAR,
+                        down_sample_method=Image.BICUBIC,
                         color_mod='RGB')
 
 img_data = ImageLoader(img_dataset,
-                       up_sample=True,
+                       up_sample=Image.BILINEAR,
                        batch_size=25,
                        shuffle=True)
+
 total_batch = len(img_data)
 print(total_batch)
 test_dataset = ImageData(test_folder,
@@ -41,12 +40,11 @@ test_dataset = ImageData(test_folder,
                          patch_size=96,
                          shrink_size=2,
                          noise_level=1,
-                         down_sample_method=Image.BILINEAR,
-                         up_sample_method=Image.BILINEAR,
+                         down_sample_method=Image.BICUBIC,
                          color_mod='RGB')
 
 test_data = ImageLoader(test_dataset,
-                        up_sample=True,
+                        up_sample=Image.BILINEAR,
                         batch_size=10,
                         shuffle=False)
 # criteria = WeightedHuberLoss(weights=rgb_weights)

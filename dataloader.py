@@ -8,7 +8,6 @@ import torch
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms.functional import to_tensor
-from torchvision.utils import save_image
 
 use_cuda = torch.cuda.is_available()
 FloatTensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
@@ -23,7 +22,7 @@ class ImageData(Dataset):
                  patch_size,
                  shrink_size,
                  noise_level,
-                 down_sample_method,
+                 down_sample_method=None,
                  color_mod='RGB'):
 
         self.img_folder = img_folder
@@ -48,7 +47,7 @@ class ImageData(Dataset):
         return patch_grids
 
     def get_img_patches(self, img_file):
-        img = Image.open(img_file)
+        img = Image.open(img_file).convert("RGB")
         img_grids = self.get_img_grids(img)
         lr_hr_patches = [self.img_augmenter.process(img, grid) for grid in img_grids]
         img.close()
@@ -92,21 +91,32 @@ class ImageAugment:
     def __init__(self,
                  shrink_size=2,
                  noise_level=1,
-                 down_sample_method=Image.BICUBIC
+                 down_sample_method=None
                  ):
-        # noise_level (int): 0: no noise; 1: 90% quality; 2:80%
-
-        self.noise_level = noise_level
+        # noise_level (int): 0: no noise; 1: 75-95% quality; 2:50-75%
+        if noise_level == 0:
+            self.noise_level = [0, 0]
+        elif noise_level == 1:
+            self.noise_level = [5, 25]
+        elif noise_level == 2:
+            self.noise_level = [25, 50]
+        else:
+            raise KeyError("Noise level should be either 0, 1, 2")
         self.shrink_size = shrink_size
         self.down_sample_method = down_sample_method
 
     def shrink_img(self, hr_img):
+
+        if self.down_sample_method is None:
+            resample_method = random.choice([Image.BILINEAR, Image.BICUBIC, Image.LANCZOS])
+        else:
+            resample_method = self.down_sample_method
         img_w, img_h = tuple(map(lambda x: int(x / self.shrink_size), hr_img.size))
-        lr_img = hr_img.resize((img_w, img_h), self.down_sample_method)
+        lr_img = hr_img.resize((img_w, img_h), resample_method)
         return lr_img
 
     def add_jpeg_noise(self, hr_img):
-        quality = 100 - 10 * self.noise_level
+        quality = 100 - round(random.uniform(*self.noise_level))
         lr_img = BytesIO()
         hr_img.save(lr_img, format='JPEG', quality=quality)
         lr_img.seek(0)
@@ -134,8 +144,6 @@ class ImageLoader(DataLoader):
                                           shuffle,
                                           collate_fn=self.batch_collector)
 
-
-
     def batch_collector(self, batch):
         lr_hr_patch = batch
         lr_img = [to_tensor(i[0]) for i in lr_hr_patch]
@@ -159,16 +167,16 @@ class ImageLoader(DataLoader):
 
 if __name__ == '__main__':
     train_folder = './dataset/train/'
-    img_dataset = ImageData(img_folder=train_folder,
-                            max_patch_per_img=1000,
-                            patch_size=611,
-                            shrink_size=2,
-                            noise_level=1,
-                            down_sample_method=Image.BICUBIC)
-
-    img_data = ImageLoader(img_dataset, batch_size=10, shuffle=True)
-
-    for i, patch in enumerate(img_data):
-        lr, hr = patch
-        save_image(lr, "./dataset/temp/lr_{}.jpeg".format(i), padding=0, nrow=1)
-        save_image(hr, "./dataset/temp/hr_{}.jpeg".format(i), padding=0, nrow=1)
+    # img_dataset = ImageData(img_folder=train_folder,
+    #                         max_patch_per_img=1000,
+    #                         patch_size=611,
+    #                         shrink_size=2,
+    #                         noise_level=1,
+    #                         down_sample_method=Image.BICUBIC)
+    #
+    # img_data = ImageLoader(img_dataset, batch_size=10, shuffle=True)
+    #
+    # for i, patch in enumerate(img_data):
+    #     lr, hr = patch
+    #     save_image(lr, "./dataset/temp/lr_{}.jpeg".format(i), padding=0, nrow=1)
+    #     save_image(hr, "./dataset/temp/hr_{}.jpeg".format(i), padding=0, nrow=1)
