@@ -22,3 +22,12 @@ model = DCSCN(*)
 model.load_state_dict(torch.load("./DCSCN/DCSCN_model_387epos_L12_noise_1.pt"))
 # then you can resume the model training 
 ```
+
+Model check poins in Upconv_7 and vgg_7 are from [waifu2x'ss repo](https://github.com/nagadomi/waifu2x/tree/master/models). To load weights into a model, please use ```load_pre_train_weights``` function. 
+
+Example: 
+```python
+model = UpConv_7()
+model.load_pre_train_weights(json_file=...)
+# then the model is ready to use 
+```
