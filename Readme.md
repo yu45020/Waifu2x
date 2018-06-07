@@ -1,28 +1,40 @@
 # Waifu2x
 
- Re-implementation on the original [waifu2x](https://github.com/nagadomi/waifu2x) in PyTorch with additional models. 
- 
- ## Details
- Models are trained on rgb based on a [waifu2x's discussion](https://github.com/nagadomi/waifu2x/issues/92). 
- 
- ### Loss
-The loss function is weighted MSE with weights [0.29891, 0.58661, 0.11448] on RGB channels. Please see [waifu2x's source code](https://github.com/nagadomi/waifu2x/blob/master/train.lua#L109) and a [blog post](https://blog.csdn.net/AIchipmunk/article/details/53704139).  The weights come from the image transform from RGB to gray scale.
- 
- L1 seems to be more robust and converges faster than MSE. Need more test. 
- 
- ### Image Processing
- High resolution PNGs are cropped into 192x192 non-overlapping patches, so some parts of images are dropped. A lesson I learn is that DON'T save processed patches. I save over 2x80 thousands small patches (both high and low resolution), and I fail to open the folder. 
+ Re-implementation on the original [waifu2x](https://github.com/nagadomi/waifu2x) in PyTorch with additional super resolution models. 
+
+ ## Image Processing
+ High resolution PNGs are cropped into 96x96 non-overlapping patches, so some parts of images are dropped. A lesson I learn is that DON'T save processed patches. I save over 2x80 thousands small patches (both high and low resolution), and I fail to open the folder. 
  
  High resolution images are loaded all at once in memory and cut into patches. Low resolution patches are also saved in  memory. They are then dumped into PyTorch's dataloader and feed into the neural net. 
  
 
+Re-sampling methods  are uniformly chosen among ```[PIL.Image.BILINEAR, PIL.Image.BICUBIC, PIL.Image.LANCZOS]``` , so different patches in the same image might have be down-scaled in different ways. 
+
+Image noise are from JPEG format only. They are added by re-encoding PNG images into PIL's JPEG data with various quality. Noise level 1 means quality ranges uniformly from [75, 95]; noise level 2 means quality ranges uniformly from [50, 75]. 
  
-Low resolution images are shrunk by BICUBIC and  re-encoded into JPEG format, which is very common for low quality Anime style images. Noise factor is added via changing the quality value when re-encoding image. 
+
+
  
  ## Models
  
+ Model is trained on high resolution RGB images with L1 loss without weights.
+  According to [Loss Functions for Image Restoration with Neural
+Networks](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=4&cad=rja&uact=8&ved=0ahUKEwi7kuGt_7_bAhXrqVQKHRqhCcUQFghUMAM&url=http%3A%2F%2Fresearch.nvidia.com%2Fsites%2Fdefault%2Ffiles%2Fpubs%2F2017-03_Loss-Functions-for%2Fcomparison_tci.pdf&usg=AOvVaw1p0ndOKRH2ZaEsumO7d_bA),  L1 seems to be more robust and converges faster than MSE. Need more test. 
 
+ #### DCSCN
+[Fast and Accurate Image Super Resolution by Deep CNN with Skip Connection and Network in Network](https://github.com/jiny2001/dcscn-super-resolution#fast-and-accurate-image-super-resolution-by-deep-cnn-with-skip-connection-and-network-in-network)
+ 
+ DCSCN is very interesting as it  has relatively quick forward computation, and  both the shallow model (layerr 8) and deep model (layer 12) are quick to train.
+ 
+ SELU is a good drop in replacement for PReLu with L1 & MSE loss. Under SELU, dropout, alpha dropout, gradient clipping and batch norm have negative impact on this model. 
+ 
+ A pre-trained 12-layer model as well as model parameters are available. The model run time is around 3-5 times of Waifu2x. The output quality is usually visually indistinguishable, but its PSNR and SSIM are  bit higher. Though, such comparison is not fair since the 12-layer model has around 1,889,974 parameters, 5 times more than waifu2x's Upconv_7 model. 
+ 
+ 
  #### ESPCN_7
+ * Need more configurations and tests. 
+ 
+
 Modified from [Real-Time Single Image and Video Super-Resolution Using an Efficient Sub-Pixel Convolutional Neural Network](https://arxiv.org/abs/1609.05158).  Computations are done on the low resolution images, and the  last layer is Pixel Shuffle that scale up the input image. 
 
 A selection unit is added in between of convolutional filters.  Details on the selection unit can be found in [A Deep Convolutional Neural Network with Selection Units for Super-Resolution](http://openaccess.thecvf.com/content_cvpr_2017_workshops/w12/papers/Choi_A_Deep_Convolutional_CVPR_2017_paper.pdf). But the activation function is changed to SELU. It seems quite powerful.
@@ -33,16 +45,17 @@ A selection unit is added in between of convolutional filters.  Details on the s
  
  In Google's colaboratory environment (GPU K-80), an iteration on 50 images (96x96 -> 192x192) is around 2.8s with around 5 GB GPU memory usage. 
  
+### Waifu2x Original Models 
+Models can load waifu2x's pre-trained weights.  The function ```forward_checkpoint```  sets the ```nn.LeakyReLU``` to compute data inplace.
+
+#### Upconv_7
+Original waifu2x's model. PyTorch's implementation with cpu only is around 5 times longer for large images.  The output images have very close PSNR and SSIM scores compared to images generated from the [caffe version](https://github.com/lltcggie/waifu2x-caffe) , thought they are not identical. 
+
+#### Vgg_7
+Not tested yet, but it is ready to use. 
 
 
- #### DCSCN
-[Fast and Accurate Image Super Resolution by Deep CNN with Skip Connection and Network in Network](https://github.com/jiny2001/dcscn-super-resolution#fast-and-accurate-image-super-resolution-by-deep-cnn-with-skip-connection-and-network-in-network)
- 
- DCSCN is very interesting as it  has relatively quick forward computation, and  both the shallow model (layerr 8) and deep model (layer 12) are quick to train.
- 
- SELU is a good drop in replacement for PReLu with L1 & MSE loss. Under SELU, dropout, alpha dropout, gradient clipping and batch norm have negative impact on this model. 
- 
- 
+
  ## TODO: 
  
  * [DRRN](http://cvlab.cse.msu.edu/pdfs/Tai_Yang_Liu_CVPR2017.pdf) (planned)

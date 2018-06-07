@@ -1,3 +1,4 @@
+import json
 import warnings
 from collections import OrderedDict
 from contextlib import contextmanager
@@ -30,7 +31,7 @@ class BaseModule(nn.Module):
 
     @contextmanager
     def set_activation_inplace(self):
-        if hasattr(self.act_fn, 'inplace'):
+        if hasattr(self, 'act_fn') and hasattr(self.act_fn, 'inplace'):
             # save memory
             self.act_fn.inplace = True
             yield
@@ -39,7 +40,7 @@ class BaseModule(nn.Module):
             yield
 
     def total_parameters(self):
-        return [i.data for i in self.parameters()]
+        return sum([i.numel() for i in self.parameters()])
 
     def forward(self, *x):
         raise NotImplementedError
@@ -151,3 +152,73 @@ class DCSCN(BaseModule):
         lr += lr_up
         return lr
 
+
+# +++++++++++++++++++++++++++++++++++++
+#           original Waifu2x model
+# -------------------------------------
+
+
+class UpConv_7(BaseModule):
+    # https://github.com/nagadomi/waifu2x/blob/3c46906cb78895dbd5a25c3705994a1b2e873199/lib/srcnn.lua#L311
+    def __init__(self):
+        super(UpConv_7, self).__init__()
+        self.act_fn = nn.LeakyReLU(0.1, inplace=False)
+        self.offset = 14  # because of 0 padding
+
+        m = [nn.Conv2d(3, 16, 3, 1, 0),
+             self.act_fn,
+             nn.Conv2d(16, 32, 3, 1, 0),
+             self.act_fn,
+             nn.Conv2d(32, 64, 3, 1, 0),
+             self.act_fn,
+             nn.Conv2d(64, 128, 3, 1, 0),
+             self.act_fn,
+             nn.Conv2d(128, 128, 3, 1, 0),
+             self.act_fn,
+             nn.Conv2d(128, 256, 3, 1, 0),
+             self.act_fn,
+             # in_channels, out_channels, kernel_size, stride=1, padding=0, output_padding=
+             nn.ConvTranspose2d(256, 3, kernel_size=4, stride=2, padding=3, bias=False)
+             ]
+        self.Sequential = nn.Sequential(*m)
+
+    def load_pre_train_weights(self, json_file):
+        with open(json_file) as f:
+            weights = json.load(f)
+        box = []
+        for i in weights:
+            box.append(i['weight'])
+            box.append(i['bias'])
+        own_state = self.state_dict()
+        for index, (name, param) in enumerate(own_state.items()):
+            own_state[name].copy_(torch.FloatTensor(box[index]))
+
+    def forward(self, *x):
+        return self.Sequential.forward(*x)
+
+    def forward_checkpoint(self, *x):
+        with self.set_activation_inplace():
+            out = self.forward(*x)
+        return out
+
+
+class Vgg_7(UpConv_7):
+    def __init__(self):
+        super(Vgg_7, self).__init__()
+        self.act_fn = nn.LeakyReLU(0.1, inplace=False)
+        self.offset = 14
+        m = [nn.Conv2d(3, 32, 3, 1, 0),
+             self.act_fn,
+             nn.Conv2d(32, 32, 3, 1, 0),
+             self.act_fn,
+             nn.Conv2d(32, 64, 3, 1, 0),
+             self.act_fn,
+             nn.Conv2d(64, 64, 3, 1, 0),
+             self.act_fn,
+             nn.Conv2d(64, 128, 3, 1, 0),
+             self.act_fn,
+             nn.Conv2d(128, 128, 3, 1, 0),
+             self.act_fn,
+             nn.Conv2d(128, 3, 3, 1, 0)
+             ]
+        self.Sequential = nn.Sequential(*m)
