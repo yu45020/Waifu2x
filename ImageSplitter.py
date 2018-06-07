@@ -17,14 +17,15 @@ class ImageSplitter:
     # Boarder padding and over-lapping img splitting to avoid the instability of edge value
     # Thanks Waifu2x's autorh nagadomi for suggestions (https://github.com/nagadomi/waifu2x/issues/238)
 
-    def __init__(self, seg_size=48, scale_factor=2, scale_method=Image.BILINEAR, pad_size=3):
+    def __init__(self, seg_size=48, scale_factor=2, scale_method=Image.BILINEAR, boarder_pad_size=3, img_pad=0):
         self.seg_size = seg_size
         self.scale_factor = scale_factor
         self.scale_method = scale_method
-        self.pad_size = pad_size
+        self.pad_size = boarder_pad_size
         self.height = 0
         self.width = 0
         self.upsampler = nn.Upsample(scale_factor=scale_factor, mode='bilinear')
+        self.img_pad = img_pad
 
     def split_img_tensor(self, pil_img):
         # resize image and convert them into tensor
@@ -50,7 +51,8 @@ class ImageSplitter:
                 part = img_tensor[:, :,
                        (i - self.pad_size):min(i + self.pad_size + self.seg_size, height),
                        (j - self.pad_size):min(j + self.pad_size + self.seg_size, width)]
-
+                if self.img_pad > 0:
+                    part = nn.ZeroPad2d(self.img_pad)(part)
                 if self.scale_method is not None:
                     # part_up = self.upsampler(part)
                     part_up = img_up[:, :,

@@ -1,4 +1,4 @@
-## Resume & Use Model Check Points 
+# Resume & Use Model Check Points 
 
 This folder contains check points for models and their weights.  They are generated from [PyTorch's pickle](https://pytorch.org/docs/master/notes/serialization.html). 
 
