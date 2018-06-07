@@ -3,8 +3,8 @@ from torch.nn.utils import clip_grad_norm_
 from torch.optim import Adam
 from tqdm import trange
 
-from ImageSplitter import *
 from dataloader import *
+from utils.ImageSplitter import *
 
 # rgb_weights = [0.29891 * 3, 0.58661 * 3, 0.11448 * 3]
 # https://github.com/nagadomi/waifu2x/blob/master/train.lua#L109

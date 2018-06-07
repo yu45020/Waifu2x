@@ -3,8 +3,8 @@ import copy
 from PIL import Image
 from torchvision.transforms.functional import to_tensor
 
-import pytorch_mssim
 from models import *
+from utils import pytorch_mssim
 
 
 def eval_ssim(img1, img2):
