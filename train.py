@@ -4,6 +4,7 @@ from torch.optim import Adam
 from tqdm import trange
 
 from dataloader import *
+from utils import image_quality
 from utils.prepare_images import *
 
 # rgb_weights = [0.29891 * 3, 0.58661 * 3, 0.11448 * 3]
@@ -98,7 +99,7 @@ for i in ibar:
         counter += 1
         all_loss.append(loss.item())
         batch_loss.append(loss.item())
-        ssim = eval_ssim(outputs, hr_img)
+        ssim = image_quality.msssim(outputs, hr_img)
         ibar.set_postfix(ratio=index / total_batch, loss=loss.item(), ssim=ssim, batch=index)
         insample_ssim += ssim
 
@@ -110,7 +111,7 @@ for i in ibar:
     for test_batch in test_data:
         lr_img, hr_img
         lr_img_up = model.forward_checkpoint(lr_img)
-        ssim += eval_ssim(lr_img_up, hr_img)
+        ssim += image_quality.msssim(lr_img_up, hr_img)
     avg_ssim.append(ssim / len(test_data))
     ibar.write("Average loss {:.5f}; train SSIM {:.5f}; test SSIM {:.5f}".format(one_ite_loss,
                                                                                  insample_ssim / total_batch,

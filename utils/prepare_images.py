@@ -7,12 +7,6 @@ from PIL import Image
 from torchvision.transforms.functional import to_tensor
 
 from models import *
-from utils import pytorch_mssim
-
-
-def eval_ssim(img1, img2):
-    mssin_value = pytorch_mssim.msssim(img1, img2)
-    return mssin_value.data
 
 
 class ImageSplitter:

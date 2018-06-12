@@ -12,27 +12,47 @@ Re-sampling methods  are uniformly chosen among ```[PIL.Image.BILINEAR, PIL.Imag
 
 Image noise are from JPEG format only. They are added by re-encoding PNG images into PIL's JPEG data with various quality. Noise level 1 means quality ranges uniformly from [75, 95]; noise level 2 means quality ranges uniformly from [50, 75]. 
  
+
  ## Models
  #### Models Comparison
- Bench marks will be added. 
- ##### 2x up scale
- ![models_comparison](Readme_imgs/demo_bicubic_dcscn_upconv.png)
- Image is from [Key: サマボケ(Summer Pocket)](http://key.visualarts.gr.jp/summer/).
- 
+I am not able to distinguish the outcome between DCSCN and Upconv, but the first model runs 5x slower than the second model. 
+ ##### 2x upscale
+  Images are from [Key: サマボケ(Summer Pocket)](http://key.visualarts.gr.jp/summer/).
+
+ ![models_comparison](Readme_imgs/demo_bicubic_dcscn_upconv.png) 
 
  Upconv_7 is currently used in waifu2x. Ensembling is NOT used.
  ##### Memory usage
  ![memory](Readme_imgs/memory_profile.JPG)
  
+ ##### Another Example
+ The image is 2x down scaled by Image.BICUBIC and then up scaled.
+ ![upscales](Readme_imgs/demo_true_bicubic_dcscn_upconv.png)
+
  
- Model is trained on high resolution RGB images with L1 loss without weights.
-  According to [Loss Functions for Image Restoration with Neural
-Networks](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=4&cad=rja&uact=8&ved=0ahUKEwi7kuGt_7_bAhXrqVQKHRqhCcUQFghUMAM&url=http%3A%2F%2Fresearch.nvidia.com%2Fsites%2Fdefault%2Ffiles%2Fpubs%2F2017-03_Loss-Functions-for%2Fcomparison_tci.pdf&usg=AOvVaw1p0ndOKRH2ZaEsumO7d_bA),  L1 seems to be more robust and converges faster than MSE. Need more test. 
+ 
+ ##### Scores
+Images are twitter icons (PNG) from [Key: サマボケ(Summer Pocket)](http://key.visualarts.gr.jp/summer/). They are cropped into non-overlapping 96x96 patches and down-scaled 2x. Then images are re-encoded into JPEG format with quality from [75, 95].
+
+|         | Total Parameters | BICUBIC  | Random |
+| :---: | :---:   | :---:  |  :---:  |
+| DCSCN 12 |1,889,974 | 31.5358 (0.9851) |     31.1457 (0.9834) |   
+| Upconv 7| 552,480|  31.4566 (0.9788) |   30.9492 (0.9772)   |
+
+* Random: uniformly select down scale methods from Image.BICUBIC, Image.BILINEAR, Image.LANCZOS
+            
+
+
+ 
 
  #### DCSCN
 [Fast and Accurate Image Super Resolution by Deep CNN with Skip Connection and Network in Network](https://github.com/jiny2001/dcscn-super-resolution#fast-and-accurate-image-super-resolution-by-deep-cnn-with-skip-connection-and-network-in-network)
  
- DCSCN is very interesting as it  has relatively quick forward computation, and  both the shallow model (layerr 8) and deep model (layer 12) are quick to train. The settings are different from the paper. I use exponential decay to decrease the number of feature filters in each layer. [Here](https://github.com/jiny2001/dcscn-super-resolution/blob/a868775930c6b36922897b0203468f3f1481e935/DCSCN.py#L204) is the original filter decay method. I also increase the reconstruction filters from 48 to 128. All activations are replaced by SELU. Dropout and weight decay are not added neither. 
+ DCSCN is very interesting as it  has relatively quick forward computation, and  both the shallow model (layerr 8) and deep model (layer 12) are quick to train. The settings are different from the paper. I use exponential decay to decrease the number of feature filters in each layer. [Here](https://github.com/jiny2001/dcscn-super-resolution/blob/a868775930c6b36922897b0203468f3f1481e935/DCSCN.py#L204) is the original filter decay method. I also increase the reconstruction filters from 48 to 128. All activations are replaced by SELU. Dropout and weight decay are not added neither. The loss function is changed from MSE to L1 
+ 
+   According to [Loss Functions for Image Restoration with Neural
+Networks](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=4&cad=rja&uact=8&ved=0ahUKEwi7kuGt_7_bAhXrqVQKHRqhCcUQFghUMAM&url=http%3A%2F%2Fresearch.nvidia.com%2Fsites%2Fdefault%2Ffiles%2Fpubs%2F2017-03_Loss-Functions-for%2Fcomparison_tci.pdf&usg=AOvVaw1p0ndOKRH2ZaEsumO7d_bA),  L1 seems to be more robust and converges faster than MSE. Need more test. 
+
  
  SELU is a good drop in replacement for PReLu with L1 & MSE loss. Under SELU, dropout, alpha dropout, gradient clipping and batch norm have negative impact on this model. 
  
@@ -58,9 +78,6 @@ Modified from [Real-Time Single Image and Video Super-Resolution Using an Effici
 A selection unit is added in between of convolutional filters.  Details on the selection unit can be found in [A Deep Convolutional Neural Network with Selection Units for Super-Resolution](http://openaccess.thecvf.com/content_cvpr_2017_workshops/w12/papers/Choi_A_Deep_Convolutional_CVPR_2017_paper.pdf). But the activation function is changed to SELU. It seems quite powerful.
 
 ![ESPCN_7 Loss](./Readme_imgs/ESPCN_7_loss.png) 
-
-
-
 
  ## TODO: 
  * [ESPCN] for real time ? 

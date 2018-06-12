@@ -8,6 +8,8 @@ import torch
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms.functional import to_tensor
+from torch import nn
+
 
 use_cuda = torch.cuda.is_available()
 FloatTensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
@@ -138,9 +140,10 @@ class ImageAugment:
 
 class ImageLoader(DataLoader):
     def __init__(self, dataset, up_sample=Image.BILINEAR,
-                 batch_size=1, shuffle=True):
+                 batch_size=1, shuffle=True, pad_img=0):
         self.dataset = dataset
         self.up_sample = up_sample
+        self.pad_img = pad_img
         super(ImageLoader, self).__init__(dataset,
                                           batch_size,
                                           shuffle,
@@ -153,6 +156,8 @@ class ImageLoader(DataLoader):
 
         hr_img = [to_tensor(i[1]) for i in lr_hr_patch]
         hr_img = torch.stack(hr_img, dim=0).contiguous()
+        if self.pad_img:
+            lr_img = nn.ZeroPad2d(self.pad_img)(lr_img)
         if use_cuda:
             lr_img = lr_img.cuda()
             hr_img = hr_img.cuda(async=True)

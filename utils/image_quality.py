@@ -1,6 +1,7 @@
 # Pytorch Multi-Scale Structural Similarity Index (SSIM)
 # This code is written by jorge-pessoa (https://github.com/jorge-pessoa/pytorch-msssim)
 # MIT licence
+import math
 from math import exp
 
 import torch
@@ -102,8 +103,8 @@ def msssim(img1, img2, window_size=11, size_average=True):
                            len(img1.size()))
 
     if type(img1) is not Variable or type(img2) is not Variable:
-        raise RuntimeError('Input images must be Variables, not %s' %
-                           img1.__class__.__name__)
+        img1 = Variable(img1)
+        img2 = Variable(img2)
 
     weights = Variable(torch.FloatTensor([0.0448, 0.2856, 0.3001, 0.2363, 0.1333]))
     if img1.is_cuda:
@@ -120,8 +121,8 @@ def msssim(img1, img2, window_size=11, size_average=True):
         img1 = F.avg_pool2d(img1, (2, 2))
         img2 = F.avg_pool2d(img2, (2, 2))
 
-    mssim = torch.cat(mssim)
-    mcs = torch.cat(mcs)
+    mssim = torch.stack(mssim)
+    mcs = torch.stack(mcs)
     return (torch.prod(mcs[0:levels - 1] ** weights[0:levels - 1]) *
             (mssim[levels - 1] ** weights[levels - 1]))
 
@@ -136,3 +137,24 @@ class MSSSIM(torch.nn.Module):
     def forward(self, img1, img2):
         # TODO: store window between calls if possible
         return msssim(img1, img2, window_size=self.window_size, size_average=self.size_average)
+
+
+def calc_psnr(sr, hr, scale=0, benchmark=False):
+    # adapt from EDSR: https://github.com/thstkdgus35/EDSR-PyTorch
+    diff = (sr - hr).data
+    if benchmark:
+        shave = scale
+        if diff.size(1) > 1:
+            convert = diff.new(1, 3, 1, 1)
+            convert[0, 0, 0, 0] = 65.738
+            convert[0, 1, 0, 0] = 129.057
+            convert[0, 2, 0, 0] = 25.064
+            diff.mul_(convert).div_(256)
+            diff = diff.sum(dim=1, keepdim=True)
+    else:
+        shave = scale + 6
+
+    valid = diff[:, :, shave:-shave, shave:-shave]
+    mse = valid.pow(2).mean()
+
+    return -10 * math.log10(mse)
