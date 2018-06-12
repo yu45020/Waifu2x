@@ -126,7 +126,9 @@ class ImageAugment:
     def process(self, hr_patch, grid):
         hr_patch = hr_patch.crop(grid)
         lr_patch = self.shrink_img(hr_patch)
-        lr_patch = self.add_jpeg_noise(lr_patch)
+        if self.noise_level[1] > 0:
+            lr_patch = self.add_jpeg_noise(lr_patch)
+
         return lr_patch, hr_patch
 
     def up_sample(self, img, resample):

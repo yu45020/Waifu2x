@@ -1,10 +1,9 @@
-import glob
 import time
 from multiprocessing import Pool, cpu_count
 
 from torchvision.utils import save_image
 
-from utils.ImageSplitter import *
+from utils.prepare_images import *
 
 # pre_train = './model_results/DCSCN_model_387epos.pt'
 # model = DCSCN(color_channel=3,

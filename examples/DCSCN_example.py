@@ -3,7 +3,7 @@ from skimage.io import imread
 from skimage.measure import compare_psnr, compare_ssim
 from torchvision.utils import save_image
 
-from utils.ImageSplitter import *
+from utils.prepare_images import *
 
 pre_trained = "model_results/DCSCN_model_387epos.pt"
 model = DCSCN(color_channel=3,
