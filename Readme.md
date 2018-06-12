@@ -33,9 +33,9 @@ I am not able to distinguish the outcome between DCSCN and Upconv, but the first
  
  
  ##### Scores
-Images are twitter icons (PNG) from [Key: サマボケ(Summer Pocket)](http://key.visualarts.gr.jp/summer/). They are cropped into non-overlapping 96x96 patches and down-scaled by 2. Then images are re-encoded into JPEG format with quality from [75, 95].
+Images are twitter icons (PNG) from [Key: サマボケ(Summer Pocket)](http://key.visualarts.gr.jp/summer/). They are cropped into non-overlapping 96x96 patches and down-scaled by 2. Then images are re-encoded into JPEG format with quality from [75, 95]. Scores are PSNR and MS-SSIM. 
 
-|         | Total Parameters | BICUBIC  | Random* |
+|       | Total Parameters | BICUBIC  | Random* |
 | :---: | :---:   | :---:  |  :---:  |
 | DCSCN 12 |1,889,974 | 31.5358 (0.9851) |     31.1457 (0.9834) |   
 | Upconv 7| 552,480|  31.4566 (0.9788) |   30.9492 (0.9772)   |
