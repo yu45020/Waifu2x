@@ -59,6 +59,7 @@ class DCSCN(BaseModule):
                  ):
         super(DCSCN, self).__init__()
         self.total_feature_channels = 0
+        self.total_reconstruct_filters = 0
         self.upscale = up_scale
 
         self.act_fn = nn.SELU(inplace=False)
@@ -68,7 +69,7 @@ class DCSCN(BaseModule):
                                                                 last_feature_filters)
 
         self.reconstruction_block = self.make_reconstruction_block(reconstruction_filters)
-        self.up_sampler = self.make_upsampler(reconstruction_filters * 2, up_sampler_filters, color_channel)
+        self.up_sampler = self.make_upsampler(up_sampler_filters, color_channel)
         self.selu_init_params()
 
     def selu_init_params(self):
@@ -110,12 +111,13 @@ class DCSCN(BaseModule):
             ("A", self.conv_block(self.total_feature_channels, num_filters, 1)),
             ("B", nn.Sequential(*[B1, B2]))
         ])
+        self.total_reconstruct_filters = num_filters * 2
         return nn.Sequential(m)
 
-    def make_upsampler(self, in_channel, out_channel, color_channel):
+    def make_upsampler(self, out_channel, color_channel):
         out = out_channel * self.upscale ** 2
         m = OrderedDict([
-            ('Conv2d_block', self.conv_block(in_channel, out, kernel_size=3)),
+            ('Conv2d_block', self.conv_block(self.total_reconstruct_filters, out, kernel_size=3)),
             ('PixelShuffle', nn.PixelShuffle(self.upscale)),
             ("Conv2d", nn.Conv2d(out_channel, color_channel, kernel_size=3, padding=1, bias=False))
         ])
@@ -163,7 +165,7 @@ class UpConv_7(BaseModule):
     def __init__(self):
         super(UpConv_7, self).__init__()
         self.act_fn = nn.LeakyReLU(0.1, inplace=False)
-        self.offset = 14  # because of 0 padding
+        self.offset = 7  # because of 0 padding
 
         m = [nn.Conv2d(3, 16, 3, 1, 0),
              self.act_fn,
@@ -196,9 +198,9 @@ class UpConv_7(BaseModule):
     def forward(self, *x):
         return self.Sequential.forward(*x)
 
-    def forward_checkpoint(self, *x):
+    def forward_checkpoint(self, x):
         with self.set_activation_inplace():
-            out = self.forward(*x)
+            out = checkpoint(self.forward, x)
         return out
 
 
@@ -206,7 +208,7 @@ class Vgg_7(UpConv_7):
     def __init__(self):
         super(Vgg_7, self).__init__()
         self.act_fn = nn.LeakyReLU(0.1, inplace=False)
-        self.offset = 14
+        self.offset = 7
         m = [nn.Conv2d(3, 32, 3, 1, 0),
              self.act_fn,
              nn.Conv2d(32, 32, 3, 1, 0),

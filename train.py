@@ -4,7 +4,7 @@ from torch.optim import Adam
 from tqdm import trange
 
 from dataloader import *
-from utils.ImageSplitter import *
+from utils.prepare_images import *
 
 # rgb_weights = [0.29891 * 3, 0.58661 * 3, 0.11448 * 3]
 # https://github.com/nagadomi/waifu2x/blob/master/train.lua#L109
@@ -25,11 +25,11 @@ img_dataset = ImageData(train_folder,
                         patch_size=96,
                         shrink_size=2,
                         noise_level=1,
-                        down_sample_method=Image.BICUBIC,
+                        down_sample_method=None,
                         color_mod='RGB')
 
 img_data = ImageLoader(img_dataset,
-                       up_sample=Image.BILINEAR,
+                       up_sample=None,
                        batch_size=25,
                        shuffle=True)
 
