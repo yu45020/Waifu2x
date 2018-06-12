@@ -23,6 +23,7 @@ I am not able to distinguish the outcome between DCSCN and Upconv, but the first
 
  Upconv_7 is currently used in waifu2x. Ensembling is NOT used.
  ##### Memory usage
+ The image is cropped into 48x48 overlapping patches and then merged back to save memory and reduce runtime. 
  ![memory](Readme_imgs/memory_profile.JPG)
  
  ##### Another Example
@@ -32,14 +33,14 @@ I am not able to distinguish the outcome between DCSCN and Upconv, but the first
  
  
  ##### Scores
-Images are twitter icons (PNG) from [Key: サマボケ(Summer Pocket)](http://key.visualarts.gr.jp/summer/). They are cropped into non-overlapping 96x96 patches and down-scaled 2x. Then images are re-encoded into JPEG format with quality from [75, 95].
+Images are twitter icons (PNG) from [Key: サマボケ(Summer Pocket)](http://key.visualarts.gr.jp/summer/). They are cropped into non-overlapping 96x96 patches and down-scaled by 2. Then images are re-encoded into JPEG format with quality from [75, 95].
 
-|         | Total Parameters | BICUBIC  | Random |
+|         | Total Parameters | BICUBIC  | Random* |
 | :---: | :---:   | :---:  |  :---:  |
 | DCSCN 12 |1,889,974 | 31.5358 (0.9851) |     31.1457 (0.9834) |   
 | Upconv 7| 552,480|  31.4566 (0.9788) |   30.9492 (0.9772)   |
 
-* Random: uniformly select down scale methods from Image.BICUBIC, Image.BILINEAR, Image.LANCZOS
+*uniformly select down scale methods from Image.BICUBIC, Image.BILINEAR, Image.LANCZOS.
             
 
 
@@ -56,6 +57,14 @@ Networks](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=4&cad=rj
  
  SELU is a good drop in replacement for PReLu with L1 & MSE loss. Under SELU, dropout, alpha dropout, gradient clipping and batch norm have negative impact on this model. 
  
+ I needs to thank jiny2001 to test the difference of SELU and PRELU. SELU seems more stable and has fewer parameters to train. 
+ >layers=8, filters=96 and dataset=yang91+bsd200. 
+ ![](Readme_imgs/DCSCN_comparison/selu_prelu.png)
+ The details can be found in [here]( https://github.com/jiny2001/dcscn-super-resolution/issues/29). 
+ 
+ 
+ 
+  
  A pre-trained 12-layer model as well as model parameters are available. The model run time is around 3-5 times of Waifu2x. The output quality is usually visually indistinguishable, but its PSNR and SSIM are  bit higher. Though, such comparison is not fair since the 12-layer model has around 1,889,974 parameters, 5 times more than waifu2x's Upconv_7 model. 
  
  
