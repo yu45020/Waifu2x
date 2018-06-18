@@ -1,3 +1,5 @@
+# Speed up inference in CPU only environment
+
 import time
 from multiprocessing import Pool, cpu_count
 

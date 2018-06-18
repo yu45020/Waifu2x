@@ -1,16 +1,9 @@
-import torch
-from PIL import Image
-from torchvision.utils import save_image
-import time
 import numpy as np
 from tqdm import tqdm
 
-from utils import image_quality
 from dataloader import ImageData, ImageLoader
-from models import DCSCN, UpConv_7
+from utils import image_quality
 from utils.prepare_images import *
-from multiprocessing import Pool, cpu_count
-import glob
 
 DCSCN_12 = "model_check_points/DCSCN/DCSCN_model_387epos_L12_noise_1.pt"
 model_dcscn = torch.load(DCSCN_12)
