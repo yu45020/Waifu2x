@@ -6,7 +6,7 @@
 * Python 3x
 * PyTorch 0.4
 
-Optinal: Nvidia GPU. Model reference can run in cpu only. 
+Optinal: Nvidia GPU. Model inference can run in cpu only. 
 
 ## Demos
 Examples can be found in the "example" folder, but they may require users to tweak some lines to load image. This project is under development, so it might not be user-friendly.  
