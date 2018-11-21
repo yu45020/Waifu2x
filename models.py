@@ -139,21 +139,6 @@ class DCSCN(BaseModule):
         lr = self.up_sampler(reconstruction)
         return lr + lr_up
 
-    def forward_checkpoint(self, x):
-        # wrap forward computation in check_point function to save memory
-        lr, lr_up = x
-        feature = []
-        with self.set_activation_inplace():  # if possible, turn activation to inplace computation
-            for layer in self.feature_block.children():
-                lr = checkpoint(layer, lr)
-                feature.append(lr)
-            feature = torch.cat(feature, dim=1)
-            reconstruction = [checkpoint(layer, feature) for layer in self.reconstruction_block.children()]
-            reconstruction = torch.cat(reconstruction, dim=1)
-            lr = checkpoint(self.up_sampler, reconstruction)
-        lr += lr_up
-        return lr
-
 
 # +++++++++++++++++++++++++++++++++++++
 #           original Waifu2x model

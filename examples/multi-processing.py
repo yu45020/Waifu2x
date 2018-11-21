@@ -23,7 +23,7 @@ lr_imgs = glob.glob("./benchmark/Set14_SR/lr_imgs/*_LR.png")
 
 if __name__ == '__main__':
     # model = torch.load("dcscn.pt")  # set the img_pad=0
-    sp = ImageSplitter(seg_size=48, scale_factor=2, scale_method=None, boarder_pad_size=3, img_pad=model.offset // 2)
+    sp = ImageSplitter(seg_size=48, scale_factor=2, boarder_pad_size=3)
     for lr_img in lr_imgs:
         a = time.time()
         patches = sp.split_img_tensor(Image.open(lr_img))
