@@ -1,6 +1,6 @@
 import numpy as np
-from torch.nn.utils import clip_grad_norm_
 from torch.optim import Adam
+from torch.utils.data import DataLoader
 from tqdm import trange
 
 from dataloader import *
@@ -18,62 +18,57 @@ FloatTensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 LongTensor = torch.cuda.LongTensor if use_cuda else torch.LongTensor
 Tensor = FloatTensor
 
-train_folder = './dataset/train/'
-test_folder = "./dataset/test/"
+train_folder = './dataset/train'
+test_folder = "./dataset/test"
 
 img_dataset = ImageData(train_folder,
-                        max_patch_per_img=1000,
                         patch_size=96,
                         shrink_size=2,
                         noise_level=1,
                         down_sample_method=None,
                         color_mod='RGB')
 
-img_data = ImageLoader(img_dataset,
-                       up_sample=None,
-                       batch_size=25,
-                       shuffle=True)
+img_data = DataLoader(img_dataset, batch_size=2, shuffle=True)
 
 total_batch = len(img_data)
 print(total_batch)
+
 test_dataset = ImageData(test_folder,
-                         max_patch_per_img=10,
                          patch_size=96,
                          shrink_size=2,
                          noise_level=1,
                          down_sample_method=Image.BICUBIC,
                          color_mod='RGB')
+num_test = len(test_dataset)
+test_data = DataLoader(test_dataset)
 
-test_data = ImageLoader(test_dataset,
-                        up_sample=Image.BILINEAR,
-                        batch_size=10,
-                        shuffle=False)
 # criteria = WeightedHuberLoss(weights=rgb_weights)
 criteria = nn.L1Loss()
+
 model = DCSCN(color_channel=3,
               up_scale=2,
               feature_layers=12,
               first_feature_filters=196,
               last_feature_filters=48,
-              reconstruction_filters=64,
+              reconstruction_filters=128,
               up_sampler_filters=32)
 
-pre_train = torch.load("./model_results/DCSCN_model_135epos.pt", map_location='cpu')
-new = model.state_dict()
-a = {}
-for i, j in zip(pre_train, new):
-    a[j] = pre_train[i]
+pre_train = torch.load("./model_check_points/DCSCN/DCSCN_weights_387epos_L12_noise_1.pt", map_location='cpu')
+# new = model.state_dict()
+# a = {}
+# for i, j in zip(pre_train, new):
+#     a[j] = pre_train[i]
+#
+model.load_state_dict(pre_train, strict=False)
 
-model.load_state_dict(a, strict=False)
-torch.save(model.state_dict(), "./model_results/DCSCN_model_135epos_2.pt")
+# torch.save(model.state_dict(), "./model_results/DCSCN_model_135epos_2.pt")
 
 learning_rate = 5e-3
-weight_decay = 0
+weight_decay = 4e-5
 optimizer = Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay, amsgrad=True)
 
-if use_cuda:
-    model = model.cuda()
-    criteria = criteria.cuda()
+model = model.cuda()
+# criteria = criteria.cuda()
 
 iteration = 1
 all_loss = []
@@ -88,9 +83,11 @@ for i in ibar:
     insample_ssim = 0
     for index, batch in enumerate(img_data):
         lr_img, hr_img = batch
-        model.zero_grad()
+        lr_img = lr_img.cuda()
+        hr_img = hr_img.cuda()
 
-        outputs = model.forward(lr_img)
+        model.zero_grad()
+        outputs = model.forward((lr_img, hr_img))
         loss = criteria(outputs, hr_img)
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), 5)
@@ -109,25 +106,13 @@ for i in ibar:
     # eval
     ssim = 0
     for test_batch in test_data:
-        lr_img, hr_img
+        lr_img, hr_img = test_batch
         lr_img_up = model.forward_checkpoint(lr_img)
         ssim += image_quality.msssim(lr_img_up, hr_img)
-    avg_ssim.append(ssim / len(test_data))
+    avg_ssim.append(ssim / num_test)
     ibar.write("Average loss {:.5f}; train SSIM {:.5f}; test SSIM {:.5f}".format(one_ite_loss,
                                                                                  insample_ssim / total_batch,
                                                                                  ssim / len(test_data)))
 
-torch.save(model.state_dict(), 'DCSCN_10epos.pt')
-torch.save(optimizer.state_dict(), 'DCSCN_optim_10epos.pt')
-
-import numpy as np
-from PIL import Image
-
-img = Image.open('2.png')
-img = img.resize((3, 3))
-np.array(img)[1]
-img2 = img.resize((6, 6), Image.BILINEAR)
-np.array(img2)[1]
-a = next(iter(model.parameters()))
-a.grad
-clip_grad_norm_
+torch.save(model.state_dict(), './model_check_points/DCSCN/DCSCN_10epos.pt')
+torch.save(optimizer.state_dict(), './model_check_points/DCSCN/DCSCN_optim_10epos.pt')

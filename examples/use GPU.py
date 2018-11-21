@@ -23,5 +23,5 @@ if torch.cuda.is_available():
     img = img.cuda()
     img_up = img_up.cuda()
 
-out = model.forward_checkpoint((img, img_up))
+out = model((img, img_up))
 save_image(out, './benchmark/miku_dcscn.png')
