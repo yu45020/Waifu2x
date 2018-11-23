@@ -26,6 +26,7 @@ class ImageData(Dataset):
         self.img_folder = img_folder
         all_img = glob.glob(self.img_folder + "/**", recursive=True)
         self.img = list(filter(lambda x: x.endswith('png') or x.endswith("jpg") or x.endswith("jpeg"), all_img))
+        self.total_img = len(self.img)
         self.random_cropper = RandomCrop(size=patch_size)
         self.color_mod = color_mod
         self.img_augmenter = ImageAugment(shrink_size, noise_level, down_sample_method)
@@ -40,7 +41,8 @@ class ImageData(Dataset):
         return len(self.img)
 
     def __getitem__(self, index):
-        img = self.img[index]
+        idx = random.choice(range(0, self.total_img))
+        img = self.img[idx]
         patch = self.get_img_patches(img)
         if self.color_mod == 'RGB':
             lr_img = patch[0].convert("RGB")

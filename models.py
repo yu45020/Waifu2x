@@ -6,7 +6,6 @@ from math import sqrt, exp, log
 
 import torch
 import torch.nn as nn
-from torch.utils.checkpoint import checkpoint
 
 warnings.simplefilter('ignore')
 
@@ -16,8 +15,32 @@ class BaseModule(nn.Module):
         self.act_fn = None
         super(BaseModule, self).__init__()
 
-    def load_state_dict(self, state_dict, strict=True):
-        own_state = self.state_dict()
+    def selu_init_params(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d) and m.weight.requires_grad:
+                m.weight.data.normal_(0.0, 1.0 / sqrt(m.weight.numel()))
+                if m.bias is not None:
+                    m.bias.data.fill_(0)
+            elif isinstance(m, nn.BatchNorm2d) and m.weight.requires_grad:
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
+            elif isinstance(m, nn.Linear) and m.weight.requires_grad:
+                m.weight.data.normal_(0, 1.0 / sqrt(m.weight.numel()))
+                m.bias.data.zero_()
+
+    def initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d) and m.weight.requires_grad:
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='leaky_relu')
+                if m.bias is not None:
+                    m.bias.data.zero_()
+            elif isinstance(m, nn.BatchNorm2d) and m.weight.requires_grad:
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
+    def load_state_dict(self, state_dict, strict=True, self_state=False):
+        own_state = self_state if self_state else self.state_dict()
         for name, param in state_dict.items():
             if name in own_state:
                 try:
@@ -40,7 +63,10 @@ class BaseModule(nn.Module):
             yield
 
     def total_parameters(self):
-        return sum([i.numel() for i in self.parameters()])
+        total = sum([i.numel() for i in self.parameters()])
+        trainable = sum([i.numel() for i in self.parameters() if i.requires_grad])
+        print("Total parameters : {}. Trainable parameters : {}".format(total, trainable))
+        return total
 
     def forward(self, *x):
         raise NotImplementedError
@@ -184,8 +210,8 @@ class UpConv_7(BaseModule):
         return self.Sequential.forward(*x)
 
     def forward_checkpoint(self, x):
-        with self.set_activation_inplace():
-            out = checkpoint(self.forward, x)
+        with torch.no_grad():
+            out = self.forward(x)
         return out
 
 

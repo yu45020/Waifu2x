@@ -85,9 +85,10 @@ for i in ibar:
         lr_img, hr_img = batch
         lr_img = lr_img.cuda()
         hr_img = hr_img.cuda()
-
+        lr_up = nn.functional.interpolate(lr_img, scale_factor=2,
+                                          mode='bicubic', align_corners=False)
         model.zero_grad()
-        outputs = model.forward((lr_img, hr_img))
+        outputs = model.forward((lr_img, lr_up))
         loss = criteria(outputs, hr_img)
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), 5)
