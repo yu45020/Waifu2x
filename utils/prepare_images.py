@@ -6,7 +6,7 @@ from multiprocessing.dummy import Pool as ThreadPool
 from PIL import Image
 from torchvision.transforms.functional import to_tensor
 
-from models import *
+from Models import *
 
 
 class ImageSplitter:

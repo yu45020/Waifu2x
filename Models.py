@@ -1,75 +1,11 @@
 import json
-import warnings
 from collections import OrderedDict
-from contextlib import contextmanager
-from math import sqrt, exp, log
+from math import exp
 
-import torch
-import torch.nn as nn
-
-warnings.simplefilter('ignore')
+from Common import *
 
 
-class BaseModule(nn.Module):
-    def __init__(self):
-        self.act_fn = None
-        super(BaseModule, self).__init__()
-
-    def selu_init_params(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d) and m.weight.requires_grad:
-                m.weight.data.normal_(0.0, 1.0 / sqrt(m.weight.numel()))
-                if m.bias is not None:
-                    m.bias.data.fill_(0)
-            elif isinstance(m, nn.BatchNorm2d) and m.weight.requires_grad:
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
-
-            elif isinstance(m, nn.Linear) and m.weight.requires_grad:
-                m.weight.data.normal_(0, 1.0 / sqrt(m.weight.numel()))
-                m.bias.data.zero_()
-
-    def initialize_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d) and m.weight.requires_grad:
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='leaky_relu')
-                if m.bias is not None:
-                    m.bias.data.zero_()
-            elif isinstance(m, nn.BatchNorm2d) and m.weight.requires_grad:
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
-
-    def load_state_dict(self, state_dict, strict=True, self_state=False):
-        own_state = self_state if self_state else self.state_dict()
-        for name, param in state_dict.items():
-            if name in own_state:
-                try:
-                    own_state[name].copy_(param.data)
-                except Exception as e:
-                    print("Parameter {} fails to load.".format(name))
-                    print("-----------------------------------------")
-                    print(e)
-            else:
-                print("Parameter {} is not in the model. ".format(name))
-
-    @contextmanager
-    def set_activation_inplace(self):
-        if hasattr(self, 'act_fn') and hasattr(self.act_fn, 'inplace'):
-            # save memory
-            self.act_fn.inplace = True
-            yield
-            self.act_fn.inplace = False
-        else:
-            yield
-
-    def total_parameters(self):
-        total = sum([i.numel() for i in self.parameters()])
-        trainable = sum([i.numel() for i in self.parameters() if i.requires_grad])
-        print("Total parameters : {}. Trainable parameters : {}".format(total, trainable))
-        return total
-
-    def forward(self, *x):
-        raise NotImplementedError
+# warnings.simplefilter('ignore')
 
 
 class DCSCN(BaseModule):
@@ -166,7 +102,111 @@ class DCSCN(BaseModule):
         return lr + lr_up
 
 
+class CARN_Block(BaseModule):
+    def __init__(self, channels, kernel_size=3, padding=1, dilation=1, groups=1, activation=nn.SELU(), repeat=3,
+                 SEBlock=False, conv=nn.Conv2d):
+        super(CARN_Block, self).__init__()
+        m = []
+        for i in range(repeat):
+            m.append(ResidualFixBlock(channels, channels, kernel_size=kernel_size, padding=padding, dilation=dilation,
+                                      groups=groups, activation=activation, conv=conv))
+            if SEBlock:
+                m.append(SpatialChannelSqueezeExcitation(channels))
+        self.blocks = nn.Sequential(*m)
+        self.singles = nn.Sequential(
+            *[ConvBlock(channels * (i + 2), channels, kernel_size=1, padding=0, activation=activation, conv=conv)
+              for i in range(repeat)])
+
+    def forward(self, x):
+        c0 = x
+        for block, single in zip(self.blocks, self.singles):
+            b = block(x)
+            c0 = c = torch.cat([c0, b], dim=1)
+            x = single(c)
+
+        return x
+
+
+class CARN(BaseModule):
+    # Fast, Accurate, and Lightweight Super-Resolution with Cascading Residual Network
+    # https://github.com/nmhkahn/CARN-pytorch
+    def __init__(self,
+                 color_channels=3,
+                 mid_channels=64,
+                 scale=2,
+                 activation=nn.SELU(),
+                 num_blocks=3,
+                 conv=nn.Conv2d):
+        super(CARN, self).__init__()
+
+        self.color_channels = color_channels
+        self.mid_channels = mid_channels
+        self.scale = scale
+
+        self.entry_block = ConvBlock(color_channels, mid_channels, kernel_size=3, padding=1, activation=activation,
+                                     conv=conv)
+        self.blocks = nn.Sequential(
+            *[CARN_Block(mid_channels, kernel_size=3, padding=1, activation=activation, conv=conv)
+              for _ in range(num_blocks)])
+        self.singles = nn.Sequential(
+            *[ConvBlock(mid_channels * (i + 2), mid_channels, kernel_size=1, padding=0, activation=activation,
+                        conv=conv)
+              for i in range(num_blocks)])
+
+        self.upsampler = UpSampleBlock(mid_channels, scale=scale, activation=activation, conv=conv)
+        self.exit_conv = conv(mid_channels, color_channels, kernel_size=3, padding=1)
+
+    def forward(self, x):
+        x = self.entry_block(x)
+        c0 = x
+        for block, single in zip(self.blocks, self.singles):
+            b = block(x)
+            c0 = c = torch.cat([c0, b], dim=1)
+            x = single(c)
+        x = self.upsampler(x)
+        out = self.exit_conv(x)
+        return out
+
+
+class CARNV2(CARN):
+    def __init__(self, color_channels=3, mid_channels=64, scale=2, activation=nn.SELU(), SEBlock=False, conv=nn.Conv2d):
+        super(CARNV2, self).__init__(color_channels=color_channels, mid_channels=mid_channels, scale=scale,
+                                     activation=activation, conv=conv)
+
+        # atrous = (1, 2, 1)
+        # atrous = (1, 2, 3, 2, 1)
+        # atrous = (1, 1, 1, 1, 1)
+        atrous = (4, 2, 1)
+        num_blocks = len(atrous)
+        self.blocks = nn.Sequential(
+            *[CARN_Block(mid_channels, kernel_size=3, padding=atrous[i], dilation=atrous[i],
+                         activation=activation, SEBlock=SEBlock, conv=conv)
+              for i in range(num_blocks)])
+        self.singles = nn.Sequential(
+            *[ConvBlock(mid_channels * (i + 2), mid_channels, kernel_size=1, padding=0, activation=activation,
+                        conv=conv)
+              for i in range(num_blocks)])
+        # self.features_conv = conv((num_blocks + 1) * mid_channels, mid_channels, kernel_size=3, padding=1)
+
+    def forward2(self, x):
+        x = self.entry_block(x)
+        c0 = x
+        features = [x]
+        for block, single in zip(self.blocks, self.singles):
+            b = block(x)
+            c0 = c = torch.cat([c0, b], dim=1)
+            x = single(c)
+            features.append(x)
+        features = torch.cat(features, dim=1)
+        x = self.features_conv(features)
+        x = self.upsampler(x)
+        out = self.exit_conv(x)
+        return out
+
+
 # +++++++++++++++++++++++++++++++++++++
+
+
 #           original Waifu2x model
 # -------------------------------------
 

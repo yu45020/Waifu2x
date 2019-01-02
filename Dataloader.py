@@ -2,6 +2,7 @@ import glob
 import random
 from io import BytesIO
 
+import h5py
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
@@ -14,6 +15,31 @@ LongTensor = torch.cuda.LongTensor if use_cuda else torch.LongTensor
 Tensor = FloatTensor
 
 
+# h5py.File("train_images.h5py", 'r', driver='mpio',comm=MPI.COMM_WORLD)
+
+class ImageH5Data(Dataset):
+    def __init__(self, h5py_file, folder_name):
+        self.data = h5py.File(h5py_file, 'r')[folder_name]
+        self.data_hr = self.data['train_hr']
+        self.data_lr = self.data['train_lr']
+        self.len_imgs = len(self.data_hr)
+        self.h5py_file = h5py_file
+        self.folder_name = folder_name
+
+    def __len__(self):
+        # with h5py.File(self.h5py_file, 'r') as f:
+        #     return len(f[self.folder_name]['train_lr'])
+        return self.len_imgs
+
+    def __getitem__(self, index):
+        # with h5py.File(self.h5py_file, 'r') as f:
+        #     data_lr = f[self.folder_name]['train_lr'][index]
+        #     data_hr = f[self.folder_name]['train_lr'][index]
+        #
+        #     return data_lr, data_hr
+        return self.data_lr[index], self.data_hr[index]
+
+
 class ImageData(Dataset):
     def __init__(self,
                  img_folder,
@@ -21,12 +47,14 @@ class ImageData(Dataset):
                  shrink_size=2,
                  noise_level=1,
                  down_sample_method=None,
-                 color_mod='RGB'):
+                 color_mod='RGB',
+                 dummy_len=None):
 
         self.img_folder = img_folder
         all_img = glob.glob(self.img_folder + "/**", recursive=True)
         self.img = list(filter(lambda x: x.endswith('png') or x.endswith("jpg") or x.endswith("jpeg"), all_img))
         self.total_img = len(self.img)
+        self.dummy_len = dummy_len if dummy_len is not None else self.total_img
         self.random_cropper = RandomCrop(size=patch_size)
         self.color_mod = color_mod
         self.img_augmenter = ImageAugment(shrink_size, noise_level, down_sample_method)
@@ -38,7 +66,7 @@ class ImageData(Dataset):
         return lr_hr_patches
 
     def __len__(self):
-        return len(self.img)
+        return self.dummy_len  # len(self.img)
 
     def __getitem__(self, index):
         idx = random.choice(range(0, self.total_img))
