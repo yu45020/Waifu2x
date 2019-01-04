@@ -169,19 +169,25 @@ class CARN(BaseModule):
 
 
 class CARNV2(CARN):
-    def __init__(self, color_channels=3, mid_channels=64, scale=2, activation=nn.SELU(), SEBlock=False, conv=nn.Conv2d):
+    def __init__(self, color_channels=3, mid_channels=64, scale=2, activation=nn.SELU(), SEBlock=False, conv=nn.Conv2d,
+                 atrous=(1, 1, 1)):
         super(CARNV2, self).__init__(color_channels=color_channels, mid_channels=mid_channels, scale=scale,
                                      activation=activation, conv=conv)
 
         # atrous = (1, 2, 1)
         # atrous = (1, 2, 3, 2, 1)
         # atrous = (1, 1, 1, 1, 1)
-        atrous = (4, 2, 1)
+        # atrous = (1, 2, 4, 2, 1)
+        # atrous = (1, 1, 1)
         num_blocks = len(atrous)
-        self.blocks = nn.Sequential(
-            *[CARN_Block(mid_channels, kernel_size=3, padding=atrous[i], dilation=atrous[i],
-                         activation=activation, SEBlock=SEBlock, conv=conv)
-              for i in range(num_blocks)])
+        m = []
+        for i in range(num_blocks):
+            m.append(CARN_Block(mid_channels, kernel_size=3, padding=atrous[i], dilation=atrous[i],
+                                activation=activation, SEBlock=SEBlock, conv=conv))
+            # if SEBlock:
+            #     m.append(SpatialChannelSqueezeExcitation(mid_channels))
+
+        self.blocks = nn.Sequential(*m)
         self.singles = nn.Sequential(
             *[ConvBlock(mid_channels * (i + 2), mid_channels, kernel_size=1, padding=0, activation=activation,
                         conv=conv)

@@ -2,7 +2,7 @@ import numpy as np
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from dataloader import ImageData
+from Dataloader import ImageData
 from utils import image_quality
 from utils.prepare_images import *
 
