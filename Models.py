@@ -111,7 +111,7 @@ class CARN_Block(BaseModule):
             m.append(ResidualFixBlock(channels, channels, kernel_size=kernel_size, padding=padding, dilation=dilation,
                                       groups=groups, activation=activation, conv=conv))
             if SEBlock:
-                m.append(SpatialChannelSqueezeExcitation(channels))
+                m.append(SpatialChannelSqueezeExcitation(channels, reduction=channels))
         self.blocks = nn.Sequential(*m)
         self.singles = nn.Sequential(
             *[ConvBlock(channels * (i + 2), channels, kernel_size=1, padding=0, activation=activation, conv=conv)
@@ -207,6 +207,7 @@ class CARNV2(CARN):
         x = self.features_conv(features)
         x = self.upsampler(x)
         out = self.exit_conv(x)
+
         return out
 
 

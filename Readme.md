@@ -4,9 +4,13 @@
 
 ## Dependencies 
 * Python 3x
-* PyTorch 0.4
+* PyTorch >= 0.41
 
 Optinal: Nvidia GPU. Model inference can run in cpu only. 
+
+## What's New
+* Jan 5th 2019. Add [CARN Model (Fast, Accurate, and Lightweight Super-Resolution with Cascading Residual Network)](https://github.com/nmhkahn/CARN-pytorch). Model Codes are adapted from the authors's [github repo](https://github.com/nmhkahn/CARN-pytorch). I test extra features on [Spatial Channel Squeeze Excitation](https://arxiv.org/abs/1709.01507), Atrous Convolution, and [Partial Based Padding Scheme](https://github.com/NVIDIA/partialconv).  Losses and Plots can be found in [here](./Readme_imgs/CARN).
+
 
 ## Demos
 Examples can be found in the "example" folder, but they may require users to tweak some lines to load image. This project is under development, so it might not be user-friendly.  
@@ -72,10 +76,15 @@ Networks](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=4&cad=rj
  
  
  
-  
  A pre-trained 12-layer model as well as model parameters are available. The model run time is around 3-5 times of Waifu2x. The output quality is usually visually indistinguishable, but its PSNR and SSIM are  bit higher. Though, such comparison is not fair since the 12-layer model has around 1,889,974 parameters, 5 times more than waifu2x's Upconv_7 model. 
  
- 
+ #### CARN
+ Channels are set to 64 across all blocks, so residual adds are very effective. Increase the channels to 128 lower the loss curve a little bit but doubles the total parameters from 0.9 Millions to 3 Millions. 32 Channels has much worse performance. Increasing the number of cascaded blocks from 3 to 5 doesn't lower the loss a lot. 
+  
+ SE Blocks seems to have the most obvious improvement without increasing the computation a lot. Partial based padding seems have little effect if not decrease the quality. Atrous convolution is slower about 10%-20% than normal convolution in Pytorch 1.0, but there are no obvious improvement. 
+
+![img](Readme_imgs/CARN/plots/CARN_Compare.png)
+
 ### Waifu2x Original Models 
 Models can load waifu2x's pre-trained weights.  The function ```forward_checkpoint```  sets the ```nn.LeakyReLU``` to compute data inplace.
 
