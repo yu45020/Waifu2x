@@ -129,4 +129,3 @@ class ImageAugment:
     def up_sample(self, img, resample):
         width, height = img.size
         return img.resize((self.shrink_size * width, self.shrink_size * height), resample=resample)
-2
