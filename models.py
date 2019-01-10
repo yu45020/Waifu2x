@@ -169,46 +169,51 @@ class CARN(BaseModule):
 
 
 class CARNV2(CARN):
-    def __init__(self, color_channels=3, mid_channels=64, scale=2, activation=nn.SELU(), SEBlock=False, conv=nn.Conv2d,
-                 atrous=(1, 1, 1)):
+    def __init__(self, color_channels=3, mid_channels=64, scale=2, activation=nn.SELU(),
+                 SEBlock=False, conv=nn.Conv2d, atrous=(1, 1, 1), repeat_blocks=3):
         super(CARNV2, self).__init__(color_channels=color_channels, mid_channels=mid_channels, scale=scale,
                                      activation=activation, conv=conv)
 
-        # atrous = (1, 2, 1)
-        # atrous = (1, 2, 3, 2, 1)
-        # atrous = (1, 1, 1, 1, 1)
-        # atrous = (1, 2, 4, 2, 1)
-        # atrous = (1, 1, 1)
         num_blocks = len(atrous)
         m = []
         for i in range(num_blocks):
-            m.append(CARN_Block(mid_channels, kernel_size=3, padding=atrous[i], dilation=atrous[i],
-                                activation=activation, SEBlock=SEBlock, conv=conv))
-            # if SEBlock:
-            #     m.append(SpatialChannelSqueezeExcitation(mid_channels))
-
+            m.append(CARN_Block(mid_channels, kernel_size=3, padding=1, dilation=1,
+                                activation=activation, SEBlock=SEBlock, conv=conv, repeat=repeat_blocks))
+            # m.append(ResidualFixBlock(mid_channels, mid_channels, kernel_size=3, padding=atrous[i], dilation=atrous[i],
+            #                           groups=1, activation=activation, conv=conv))
         self.blocks = nn.Sequential(*m)
+        # self.blocks = nn.Sequential(
+        #     *[CARN_Block(mid_channels, kernel_size=3, padding=atrous[i], dilation=atrous[i],
+        #                  activation=activation, SEBlock=SEBlock, conv=conv, repeat=repeat_blocks)
+        #       for i in range(num_blocks)])
         self.singles = nn.Sequential(
             *[ConvBlock(mid_channels * (i + 2), mid_channels, kernel_size=1, padding=0, activation=activation,
                         conv=conv)
               for i in range(num_blocks)])
-        # self.features_conv = conv((num_blocks + 1) * mid_channels, mid_channels, kernel_size=3, padding=1)
 
-    def forward2(self, x):
-        x = self.entry_block(x)
-        c0 = x
-        features = [x]
-        for block, single in zip(self.blocks, self.singles):
-            b = block(x)
-            c0 = c = torch.cat([c0, b], dim=1)
-            x = single(c)
-            features.append(x)
-        features = torch.cat(features, dim=1)
-        x = self.features_conv(features)
-        x = self.upsampler(x)
-        out = self.exit_conv(x)
+    def forward(self, x):
+        res = nn.functional.interpolate(x, scale_factor=2, mode='bilinear', align_corners=False)
+        out = super().forward(x)
+        return res + out
 
-        return out
+        # def forward2(self, x):
+    #     x = self.entry_block(x)
+    #     c0 = x
+    #     features = [x]
+    #     for block, single in zip(self.blocks, self.singles):
+    #         b = block(x)
+    #         c0 = c = torch.cat([c0, b], dim=1)
+    #         x = single(c)
+    #         features.append(x)
+    #     features = torch.cat(features, dim=1)
+    #     x = self.features_conv(features)
+    #     x = self.upsampler(x)
+    #     x = self.up_features(x)
+    #     out = self.exit_conv(x)
+    #
+    #     return out
+    #
+
 
 # +++++++++++++++++++++++++++++++++++++
 
