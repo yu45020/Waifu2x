@@ -79,7 +79,8 @@ class ResidualFixBlock(BaseModule):
         self.m = nn.Sequential(
             conv(in_channels, out_channels, kernel_size, padding=padding, dilation=dilation, groups=groups),
             activation,
-            conv(out_channels, out_channels, kernel_size, padding=padding, dilation=dilation, groups=groups),
+            # conv(out_channels, out_channels, kernel_size, padding=(kernel_size - 1) // 2, dilation=1, groups=groups),
+            conv(in_channels, out_channels, kernel_size, padding=padding, dilation=dilation, groups=groups),
         )
 
     def forward(self, x):
@@ -98,11 +99,11 @@ class ConvBlock(BaseModule):
 
 
 class UpSampleBlock(BaseModule):
-    def __init__(self, channels, scale, activation, conv=nn.Conv2d):
+    def __init__(self, channels, scale, activation, atrous_rate=1, conv=nn.Conv2d):
         assert scale in [2, 4, 8], "Currently UpSampleBlock supports 2, 4, 8 scaling"
         super(UpSampleBlock, self).__init__()
         m = nn.Sequential(
-            conv(channels, 4 * channels, kernel_size=3, padding=1),
+            conv(channels, 4 * channels, kernel_size=3, padding=atrous_rate, dilation=atrous_rate),
             activation,
             nn.PixelShuffle(2)
         )
@@ -117,33 +118,33 @@ class SpatialChannelSqueezeExcitation(BaseModule):
     # https://arxiv.org/pdf/1803.02579v1.pdf
     def __init__(self, in_channel, reduction=16, activation=nn.ReLU()):
         super(SpatialChannelSqueezeExcitation, self).__init__()
-        # linear_nodes = max(in_channel // reduction, 4)  # avoid only 1 node case
+        linear_nodes = max(in_channel // reduction, 4)  # avoid only 1 node case
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        # self.channel_excite = nn.Sequential(
-        # check the paper for the number 16 in reduction. It is selected by experiment.
-        # nn.Linear(in_channel, linear_nodes),
-        # activation,
-        # nn.Linear(linear_nodes, in_channel),
-        # nn.Sigmoid()
-        # )
+        self.channel_excite = nn.Sequential(
+            # check the paper for the number 16 in reduction. It is selected by experiment.
+            nn.Linear(in_channel, linear_nodes),
+            activation,
+            nn.Linear(linear_nodes, in_channel),
+            nn.Sigmoid()
+        )
         self.spatial_excite = nn.Sequential(
             nn.Conv2d(in_channel, 1, kernel_size=1, stride=1, padding=0, bias=False),
             nn.Sigmoid()
         )
 
     def forward(self, x):
-        # b, c, h, w = x.size()
-
-        # channel = self.avg_pool(x).view(b, c)
-        # channel = F.avg_pool2d(x, kernel_size=(h,w)).view(b,c)
-        # cSE = self.channel_excite(channel).view(b, c, 1, 1)
-        # x_cSE = torch.mul(x, cSE)
+        b, c, h, w = x.size()
+        #
+        channel = self.avg_pool(x).view(b, c)
+        # channel = F.avg_pool2d(x, kernel_size=(h,w)).view(b,c) # used for porting to other frameworks
+        cSE = self.channel_excite(channel).view(b, c, 1, 1)
+        x_cSE = torch.mul(x, cSE)
 
         # spatial
         sSE = self.spatial_excite(x)
         x_sSE = torch.mul(x, sSE)
-        return x_sSE
-        # return torch.add(x_cSE, x_sSE)
+        # return x_sSE
+        return torch.add(x_cSE, x_sSE)
 
 
 class PartialConv(nn.Module):

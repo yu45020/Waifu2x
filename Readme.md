@@ -83,7 +83,11 @@ Networks](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=4&cad=rj
   
  SE Blocks seems to have the most obvious improvement without increasing the computation a lot. Partial based padding seems have little effect if not decrease the quality. Atrous convolution is slower about 10%-20% than normal convolution in Pytorch 1.0, but there are no obvious improvement. 
 
+Another more effective model is to add upscaled input image to the final convolution. A simple bilinear upscaled image seems sufficient. 
+
 ![img](Readme_imgs/CARN/plots/CARN_Compare.png)
+
+![img](Readme_imgs/CARN/plots/CARN_Compare_Res_Add.png)
 
 ### Waifu2x Original Models 
 Models can load waifu2x's pre-trained weights.  The function ```forward_checkpoint```  sets the ```nn.LeakyReLU``` to compute data inplace.
