@@ -9,7 +9,7 @@
 Optinal: Nvidia GPU. Model inference can run in cpu only. 
 
 ## What's New
-* Jan 6th 2019. Add [CARN Model (Fast, Accurate, and Lightweight Super-Resolution with Cascading Residual Network)](https://github.com/nmhkahn/CARN-pytorch). Model Codes are adapted from the authors's [github repo](https://github.com/nmhkahn/CARN-pytorch). I test extra features on [Spatial Channel Squeeze Excitation](https://arxiv.org/abs/1709.01507), Atrous Convolution, and [Partial Based Padding Scheme](https://github.com/NVIDIA/partialconv).  Losses and Plots can be found in [here](./Readme_imgs/CARN).
+* Add [CARN Model (Fast, Accurate, and Lightweight Super-Resolution with Cascading Residual Network)](https://github.com/nmhkahn/CARN-pytorch). Model Codes are adapted from the authors's [github repo](https://github.com/nmhkahn/CARN-pytorch). I test extra features on [Spatial Channel Squeeze Excitation](https://arxiv.org/abs/1709.01507), Atrous Convolution, and [Partial Based Padding Scheme](https://github.com/NVIDIA/partialconv).  Losses and Plots can be found in [here](./Readme_imgs/CARN).
 
 
 ## Demos
@@ -84,6 +84,8 @@ Networks](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=4&cad=rj
  SE Blocks seems to have the most obvious improvement without increasing the computation a lot. Partial based padding seems have little effect if not decrease the quality. Atrous convolution is slower about 10%-20% than normal convolution in Pytorch 1.0, but there are no obvious improvement. 
 
 Another more effective model is to add upscaled input image to the final convolution. A simple bilinear upscaled image seems sufficient. 
+
+More examples on model configurations can be found in [Readme_imgs/CARN folder](./Readme_imgs/CARN/carn_plot_loss.md)
 
 ![img](Readme_imgs/CARN/plots/CARN_Compare.png)
 
