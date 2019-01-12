@@ -89,9 +89,11 @@ class ResidualFixBlock(BaseModule):
 
 
 class ConvBlock(BaseModule):
-    def __init__(self, in_channels, out_channels, kernel_size=3, padding=1, activation=nn.SELU(), conv=nn.Conv2d):
+    def __init__(self, in_channels, out_channels, kernel_size=3, padding=1, dilation=1, groups=1,
+                 activation=nn.SELU(), conv=nn.Conv2d):
         super(ConvBlock, self).__init__()
-        self.m = nn.Sequential(conv(in_channels, out_channels, kernel_size, padding=padding),
+        self.m = nn.Sequential(conv(in_channels, out_channels, kernel_size, padding=padding,
+                                    dilation=dilation, groups=groups),
                                activation)
 
     def forward(self, x):
