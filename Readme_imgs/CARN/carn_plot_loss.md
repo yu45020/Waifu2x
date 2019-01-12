@@ -14,7 +14,7 @@ The base model is [CARN (Fast, Accurate, and Lightweight Super-Resolution with C
 4. Residual add on bilinear up-scaled input image to the final convolution output.
 
 
-Training data are 120 128x128 RGB patches ramdomly cropped from 6 anime style images. Optimizer is [Adam wit Amsgrad](https://openreview.net/forum?id=ryQu7f-RZ) with weight decay 1e-5. The learning rate is 1e-4, and I use L1 loss. Iterations are either 300 epos or 500 epos. **Note, however, none of these model configuration have not converged yet.** All losses are stored into "carn_losses.csv" file. 
+Training data are 120 128x128 RGB patches ramdomly cropped from 6 anime style images. Optimizer is [Adam wit Amsgrad](https://openreview.net/forum?id=ryQu7f-RZ) with weight decay 1e-5. The learning rate is 1e-4, and I use L1 loss. Iterations are either 300 epos or 500 epos. **Note, however, none of these model configurations have converged yet.** All losses are stored into "carn_losses.csv" file. 
 
 
 I have very limited GPU computing power, and my card don't have enough memory for validation in every few epochs, so the following graphs are only for preliminary analysis and focus only on the loss plots.
