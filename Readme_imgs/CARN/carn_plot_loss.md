@@ -14,7 +14,7 @@ The base model is [CARN (Fast, Accurate, and Lightweight Super-Resolution with C
 4. Residual add on bilinear up-scaled input image to the final convolution output.
 
 
-Training data are 120 128x128 RGB patches ramdomly cropped from 6 anime style images. Optimizer is [Adam wit Amsgrad](https://openreview.net/forum?id=ryQu7f-RZ) with weight decay 1e-5. The learning rate is 1e-4, and I use L1 loss. Iterations are either 300 epos or 500 epos. **Note, however, none of these model configurations have converged yet.** All losses are stored into "carn_losses.csv" file. 
+Training data are 120 128x128 RGB patches ramdomly cropped from 6 anime style images. Optimizer is [Adam wit Amsgrad](https://openreview.net/forum?id=ryQu7f-RZ) with weight decay 1e-5. The learning rate is 1e-4, and I use L1 loss. Iterations are either 300 epos or 500 epos. **Note, however, none of these model configuration have not converged yet.** All losses are stored into "carn_losses.csv" file. 
 
 
 I have very limited GPU computing power, and my card don't have enough memory for validation in every few epochs, so the following graphs are only for preliminary analysis and focus only on the loss plots.
@@ -61,10 +61,10 @@ dat_loss.columns
 
 
 ```python
-def plot_results(list_loss, ylim=0.08):
+def plot_results(list_loss,bottom=0.004, top=0.04):
     for i in list_loss:
         plt.plot(dat_loss[i], label=i)
-    plt.ylim(top=ylim)
+    plt.ylim(bottom=bottom, top=top)
     plt.grid()
     plt.legend()
 ```
@@ -277,7 +277,7 @@ The input images are bilinear upscaled.
 
 ```python
 plot_results(["loss_full_v2_se",
-              "loss_full_v2_se_res_bilinear"])
+              "loss_full_v2_se_res_bilinear"], top=0.02)
 ```
 
 
@@ -299,9 +299,14 @@ Replacing all 1x1 convolution by 3x3 seems powerful, but it doubles total parame
 plot_results(["loss_full_v2_se_res_bilinear", 
              "loss_full_v2_se_res_bilinear_V2_group4", 
              "loss_full_v2_se_res_bilinear_V2_group2",
-             "loss_full_v2_se_res_bilinear_V2_group1"], ylim=0.01)
+             "loss_full_v2_se_res_bilinear_V2_group1"], top=0.01, bottom=0.005)
 ```
 
 
 ![png](carn_plot_loss_files/carn_plot_loss_32_0.png)
 
+
+
+```python
+
+```
