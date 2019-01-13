@@ -1,7 +1,9 @@
 import glob
+import re
+import os
 import random
 from io import BytesIO
-
+from uuid import uuid4
 import h5py
 import torch
 from PIL import Image
@@ -82,6 +84,45 @@ class ImageData(Dataset):
             raise KeyError('Either RGB or YCbCr')
         return to_tensor(lr_img), to_tensor(hr_img)
 
+
+class SplitImages(ImageData):
+    def __init__(self, *args, **kwargs):
+        super(SplitImages, self).__init__(*args, **kwargs)
+
+    def __getitem__(self, item):
+        idx = random.choice(range(0, self.total_img))
+        img = self.img[idx]
+        patch = self.get_img_patches(img)
+        if self.color_mod == 'RGB':
+            lr_img = patch[0].convert("RGB")
+            hr_img = patch[1].convert("RGB")
+        elif self.color_mod == 'YCbCr':
+            lr_img, _, _ = patch[0].convert('YCbCr').split()
+            hr_img, _, _ = patch[1].convert('YCbCr').split()
+        else:
+            raise KeyError('Either RGB or YCbCr')
+        name = str(uuid4())
+        lr_img.save(f"dataset/patches/lr/{name}.png")
+        hr_img.save(f"dataset/patches/hr/{name}.png")
+        # return lr_img, hr_img
+
+
+class ImagePatchData(Dataset):
+    def __init__(self, lr_folder, hr_folder):
+        self.lr_folder = lr_folder
+        self.hr_folder = hr_folder
+        self.lr_imgs = glob.glob(os.path.join(lr_folder, "**"))
+        self.total_imgs = len(self.lr_imgs)
+
+    def __len__(self):
+        return self.total_imgs
+
+    def __getitem__(self, item):
+        lr_file = self.lr_imgs[item]
+        hr_path = re.sub("lr", 'hr', os.path.dirname(lr_file))
+        filename = os.path.basename(lr_file)
+        hr_file = os.path.join(hr_path, filename)
+        return to_tensor(Image.open(lr_file)), to_tensor(Image.open(hr_file))
 
 class ImageAugment:
     def __init__(self,
