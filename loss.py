@@ -1,7 +1,6 @@
 import torch
 from torch import nn
 from torch.nn.functional import _pointwise_loss
-from torch.nn.modules.loss import _assert_no_grad
 
 rgb_weights = [0.29891 * 3, 0.58661 * 3, 0.11448 * 3]
 # RGB have different weights
@@ -18,7 +17,6 @@ class WeightedHuberLoss(nn.SmoothL1Loss):
         self.weights = torch.FloatTensor(weights).view(3, 1, 1)
 
     def forward(self, input_data, target):
-        _assert_no_grad(target)
         diff = torch.abs(input_data - target)
         z = torch.where(diff < 1, 0.5 * torch.pow(diff, 2), (diff - 0.5))
         out = z * self.weights.expand_as(diff)
@@ -38,7 +36,6 @@ class WeightedL1Loss(nn.SmoothL1Loss):
         self.weights = torch.FloatTensor(weights).view(3, 1, 1)
 
     def forward(self, input_data, target):
-        _assert_no_grad(target)
         return self.l1_loss(input_data, target, size_average=self.size_average,
                             reduce=self.reduce)
 

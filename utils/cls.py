@@ -104,6 +104,7 @@ class CyclicLR(object):
 
         self.mode = mode
         self.gamma = gamma
+        self.current_lr = None
 
         if scale_fn is None:
             if self.mode == 'triangular':
@@ -128,6 +129,7 @@ class CyclicLR(object):
         self.last_batch_iteration = batch_iteration
         for param_group, lr in zip(self.optimizer.param_groups, self.get_lr()):
             param_group['lr'] = lr
+        self.current_lr = lr
 
     def _triangular_scale_fn(self, x):
         return 1.

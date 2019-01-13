@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from Dataloader import ImageAugment
 
-patch_size = 256
+patch_size = 128
 shrink_size = 2
 noise_level = 1
 patches_per_img = 20

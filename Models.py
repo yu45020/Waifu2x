@@ -7,6 +7,9 @@ from Common import *
 
 # warnings.simplefilter('ignore')
 
+# +++++++++++++++++++++++++++++++++++++
+#           DCSCN
+# -------------------------------------
 
 class DCSCN(BaseModule):
     # https://github.com/jiny2001/dcscn-super-resolution
@@ -102,6 +105,10 @@ class DCSCN(BaseModule):
         return lr + lr_up
 
 
+# +++++++++++++++++++++++++++++++++++++
+#           CARN      
+# -------------------------------------
+
 class CARN_Block(BaseModule):
     def __init__(self, channels, kernel_size=3, padding=1, dilation=1,
                  groups=1, activation=nn.SELU(), repeat=3,
@@ -173,12 +180,12 @@ class CARN(BaseModule):
         return out
 
 
-class CARNV2(CARN):
+class CARN_V2(CARN):
     def __init__(self, color_channels=3, mid_channels=64, scale=2, activation=nn.SELU(),
                  SEBlock=False, conv=nn.Conv2d, atrous=(1, 1, 1), repeat_blocks=3,
                  single_conv_size=1, single_conv_group=1):
-        super(CARNV2, self).__init__(color_channels=color_channels, mid_channels=mid_channels, scale=scale,
-                                     activation=activation, conv=conv)
+        super(CARN_V2, self).__init__(color_channels=color_channels, mid_channels=mid_channels, scale=scale,
+                                      activation=activation, conv=conv)
 
         num_blocks = len(atrous)
         m = []
@@ -189,10 +196,7 @@ class CARNV2(CARN):
             # m.append(ResidualFixBlock(mid_channels, mid_channels, kernel_size=3, padding=atrous[i], dilation=atrous[i],
             #                           groups=1, activation=activation, conv=conv))
         self.blocks = nn.Sequential(*m)
-        # self.blocks = nn.Sequential(
-        #     *[CARN_Block(mid_channels, kernel_size=3, padding=atrous[i], dilation=atrous[i],
-        #                  activation=activation, SEBlock=SEBlock, conv=conv, repeat=repeat_blocks)
-        #       for i in range(num_blocks)])
+
         self.singles = nn.Sequential(
             *[ConvBlock(mid_channels * (i + 2), mid_channels, kernel_size=single_conv_size,
                         padding=(single_conv_size - 1) // 2, groups=single_conv_group,
@@ -203,25 +207,6 @@ class CARNV2(CARN):
         res = nn.functional.interpolate(x, scale_factor=2, mode='bilinear', align_corners=False)
         out = super().forward(x)
         return res + out
-
-        # def forward2(self, x):
-    #     x = self.entry_block(x)
-    #     c0 = x
-    #     features = [x]
-    #     for block, single in zip(self.blocks, self.singles):
-    #         b = block(x)
-    #         c0 = c = torch.cat([c0, b], dim=1)
-    #         x = single(c)
-    #         features.append(x)
-    #     features = torch.cat(features, dim=1)
-    #     x = self.features_conv(features)
-    #     x = self.upsampler(x)
-    #     x = self.up_features(x)
-    #     out = self.exit_conv(x)
-    #
-    #     return out
-    #
-
 
 # +++++++++++++++++++++++++++++++++++++
 
