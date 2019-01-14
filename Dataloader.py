@@ -1,9 +1,11 @@
 import glob
+import io
 import re
 import os
 import random
 from io import BytesIO
 from uuid import uuid4
+import sqlite3
 import h5py
 import torch
 from PIL import Image
@@ -85,26 +87,58 @@ class ImageData(Dataset):
         return to_tensor(lr_img), to_tensor(hr_img)
 
 
-class SplitImages(ImageData):
-    def __init__(self, *args, **kwargs):
-        super(SplitImages, self).__init__(*args, **kwargs)
-
+class Image2Sqlite(ImageData):
     def __getitem__(self, item):
-        idx = random.choice(range(0, self.total_img))
-        img = self.img[idx]
-        patch = self.get_img_patches(img)
+        img = self.img[item]
+        lr_hr_patch = self.get_img_patches(img)
         if self.color_mod == 'RGB':
-            lr_img = patch[0].convert("RGB")
-            hr_img = patch[1].convert("RGB")
+            lr_img = lr_hr_patch[0].convert("RGB")
+            hr_img = lr_hr_patch[1].convert("RGB")
         elif self.color_mod == 'YCbCr':
-            lr_img, _, _ = patch[0].convert('YCbCr').split()
-            hr_img, _, _ = patch[1].convert('YCbCr').split()
+            lr_img, _, _ = lr_hr_patch[0].convert('YCbCr').split()
+            hr_img, _, _ = lr_hr_patch[1].convert('YCbCr').split()
         else:
             raise KeyError('Either RGB or YCbCr')
-        name = str(uuid4())
-        lr_img.save(f"dataset/patches/lr/{name}.png")
-        hr_img.save(f"dataset/patches/hr/{name}.png")
-        # return lr_img, hr_img
+        lr_byte = self.convert_to_bytevalue(lr_img)
+        hr_byte = self.convert_to_bytevalue(hr_img)
+        return [lr_byte, hr_byte]
+
+    @staticmethod
+    def convert_to_bytevalue(pil_img):
+        img_byte = io.BytesIO()
+        pil_img.save(img_byte, format='png')
+        return img_byte.getvalue()
+
+
+class ImageDBData(Dataset):
+    def __init__(self, db_file, db_table="images", lr_col="lr_img", hr_col="hr_img", max_images=None):
+        self.db_file = db_file
+        self.db_table = db_table
+        self.lr_col = lr_col
+        self.hr_col = hr_col
+        self.total_images = self.get_num_rows(max_images)
+
+    def __len__(self):
+        return self.total_images
+
+    def get_num_rows(self, max_images):
+        with sqlite3.connect(self.db_file) as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT MAX(ROWID) FROM {self.db_table}")
+            db_rows = cursor.fetchone()[0]
+        if max_images:
+            return min(max_images, db_rows)
+        else:
+            return db_rows
+
+    def __getitem__(self, item):
+        # note sqlite rowid starts with 1
+        # conn = sqlite3.connect(self.db_file)
+        with sqlite3.connect(self.db_file) as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT {self.lr_col}, {self.hr_col} FROM {self.db_table} WHERE ROWID={item + 1}")
+            lr, hr = cursor.fetchone()
+            return to_tensor(Image.open(io.BytesIO(lr))), to_tensor(Image.open(io.BytesIO(hr)))
 
 
 class ImagePatchData(Dataset):
@@ -123,6 +157,7 @@ class ImagePatchData(Dataset):
         filename = os.path.basename(lr_file)
         hr_file = os.path.join(hr_path, filename)
         return to_tensor(Image.open(lr_file)), to_tensor(Image.open(hr_file))
+
 
 class ImageAugment:
     def __init__(self,
