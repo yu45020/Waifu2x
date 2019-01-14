@@ -1,0 +1,95 @@
+import sqlite3
+
+from torch.utils.data import DataLoader
+from tqdm import trange
+
+from Dataloader import Image2Sqlite
+
+conn = sqlite3.connect('dataset/test.db')
+cursor = conn.cursor()
+
+with conn:
+    cursor.execute("PRAGMA SYNCHRONOUS = OFF")
+
+table_name = "test_images_size_128_noise_1_rgb"
+lr_col = "lr_img"
+hr_col = "hr_img"
+
+with conn:
+    conn.execute(f"CREATE TABLE IF NOT EXISTS {table_name} ({lr_col} BLOB, {hr_col} BLOB)")
+
+dat = Image2Sqlite(img_folder='dataset/test',
+                   patch_size=256,
+                   shrink_size=2,
+                   noise_level=1,
+                   down_sample_method=None,
+                   color_mod='RGB',
+                   dummy_len=None)
+print(f"Total images {len(dat)}")
+
+img_dat = DataLoader(dat, num_workers=6, batch_size=6, shuffle=True)
+
+num_batches = 20
+for i in trange(num_batches):
+    bulk = []
+    for lrs, hrs in img_dat:
+        patches = [(lrs[i], hrs[i]) for i in range(len(lrs))]
+        # patches = [(lrs[i], hrs[i]) for i in range(len(lrs)) if len(lrs[i]) > 14000]
+
+        bulk.extend(patches)
+    bulk = [i for i in bulk if len(i[0]) > 14000]
+    cursor.executemany(f"INSERT INTO {table_name}({lr_col}, {hr_col}) VALUES (?,?)", bulk)
+    conn.commit()
+
+cursor.execute(f"select max(rowid) from {table_name}")
+cursor.fetchall()
+
+cursor.execute(f"SELECT ROWID FROM {table_name} ORDER BY LENGTH({lr_col}) DESC LIMIT 100")
+rowdis = cursor.fetchall()
+rowdis = [i[0] for i in rowdis]
+
+cursor.execute(f"DELETE FROM {table_name} WHERE ROWID NOT IN ({tuple(rowdis)})")
+cursor.execute("vacuum")
+conn.commit()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS train_images_size_128_noise_1_rgb_small AS
+SELECT *
+FROM train_images_size_128_noise_1_rgb
+WHERE length(lr_img) < 14000;
+""")
+
+cursor.execute("""
+DELETE
+FROM train_images_size_128_noise_1_rgb
+WHERE length(lr_img) < 14000;
+""")
+
+# reset index
+cursor.execute("VACUUM")
+conn.commit()
+
+# +++++++++++++++++++++++++++++++++++++
+#           check image size
+# -------------------------------------
+
+
+from PIL import Image
+import io
+
+cursor.execute(
+    # f"select {hr_col} from {table_name} where length({lr_col}) between 35000 and 40000 order by length({hr_col}) limit 100")
+    f"select {hr_col} from {table_name}"
+)
+small = cursor.fetchall()
+
+for idx, i in enumerate(small):
+    img = Image.open(io.BytesIO(i[0]))
+    img.save(f"dataset/check/{idx}.png")
+
+import pandas as pd
+import matplotlib.pyplot as plt
+
+dat = pd.read_sql(f"SELECT length({lr_col}) from {table_name}", conn)
+dat.hist(bins=20)
+plt.show()
