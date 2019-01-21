@@ -1,3 +1,11 @@
+"""
+Split images into small patches and insert them into sqlite db.  Reading and Inserting speeds are much better than
+Ubuntu's (18.04) file system when the number of patches is larger than 20k. And it has smaller size than using h5 format
+
+Recommend to check or filter out small size patches as their content vary little. 128x128 seems better than 64x64.
+
+
+"""
 import sqlite3
 
 from torch.utils.data import DataLoader
@@ -37,7 +45,7 @@ for i in trange(num_batches):
         # patches = [(lrs[i], hrs[i]) for i in range(len(lrs)) if len(lrs[i]) > 14000]
 
         bulk.extend(patches)
-    bulk = [i for i in bulk if len(i[0]) > 14000]
+    # bulk = [i for i in bulk if len(i[0]) > 14000] # for 128x128, 14000 is fair. Around 20% of patches are filtered out
     cursor.executemany(f"INSERT INTO {table_name}({lr_col}, {hr_col}) VALUES (?,?)", bulk)
     conn.commit()
 
@@ -72,24 +80,23 @@ conn.commit()
 # +++++++++++++++++++++++++++++++++++++
 #           check image size
 # -------------------------------------
-
-
-from PIL import Image
-import io
-
-cursor.execute(
-    # f"select {hr_col} from {table_name} where length({lr_col}) between 35000 and 40000 order by length({hr_col}) limit 100")
-    f"select {hr_col} from {table_name}"
-)
-small = cursor.fetchall()
-
-for idx, i in enumerate(small):
-    img = Image.open(io.BytesIO(i[0]))
-    img.save(f"dataset/check/{idx}.png")
-
-import pandas as pd
-import matplotlib.pyplot as plt
-
-dat = pd.read_sql(f"SELECT length({lr_col}) from {table_name}", conn)
-dat.hist(bins=20)
-plt.show()
+#
+#
+# from PIL import Image
+# import io
+#
+# cursor.execute(
+#     f"select {hr_col} from {table_name}"
+# )
+# small = cursor.fetchall()
+#
+# for idx, i in enumerate(small):
+#     img = Image.open(io.BytesIO(i[0]))
+#     img.save(f"dataset/check/{idx}.png")
+#
+# import pandas as pd
+# import matplotlib.pyplot as plt
+#
+# dat = pd.read_sql(f"SELECT length({lr_col}) from {table_name}", conn)
+# dat.hist(bins=20)
+# plt.show()
