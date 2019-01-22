@@ -13,7 +13,7 @@ from tqdm import trange
 
 from Dataloader import Image2Sqlite
 
-conn = sqlite3.connect('dataset/test.db')
+conn = sqlite3.connect('dataset/test2.db')
 cursor = conn.cursor()
 
 with conn:
@@ -26,7 +26,7 @@ hr_col = "hr_img"
 with conn:
     conn.execute(f"CREATE TABLE IF NOT EXISTS {table_name} ({lr_col} BLOB, {hr_col} BLOB)")
 
-dat = Image2Sqlite(img_folder='dataset/test',
+dat = Image2Sqlite(img_folder='dataset/test2',
                    patch_size=256,
                    shrink_size=2,
                    noise_level=1,
@@ -45,7 +45,7 @@ for i in trange(num_batches):
         # patches = [(lrs[i], hrs[i]) for i in range(len(lrs)) if len(lrs[i]) > 14000]
 
         bulk.extend(patches)
-    # bulk = [i for i in bulk if len(i[0]) > 14000] # for 128x128, 14000 is fair. Around 20% of patches are filtered out
+    bulk = [i for i in bulk if len(i[0]) > 14000]  # for 128x128, 14000 is fair. Around 20% of patches are filtered out
     cursor.executemany(f"INSERT INTO {table_name}({lr_col}, {hr_col}) VALUES (?,?)", bulk)
     conn.commit()
 
@@ -54,11 +54,11 @@ cursor.fetchall()
 
 cursor.execute(f"SELECT ROWID FROM {table_name} ORDER BY LENGTH({lr_col}) DESC LIMIT 100")
 rowdis = cursor.fetchall()
-rowdis = [i[0] for i in rowdis]
+rowdis = ",".join([str(i[0]) for i in rowdis])
 
-cursor.execute(f"DELETE FROM {table_name} WHERE ROWID NOT IN ({tuple(rowdis)})")
-cursor.execute("vacuum")
+cursor.execute(f"DELETE FROM {table_name} WHERE ROWID NOT IN ({rowdis})")
 conn.commit()
+cursor.execute("vacuum")
 
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS train_images_size_128_noise_1_rgb_small AS
@@ -82,21 +82,21 @@ conn.commit()
 # -------------------------------------
 #
 #
-# from PIL import Image
-# import io
-#
-# cursor.execute(
-#     f"select {hr_col} from {table_name}"
-# )
-# small = cursor.fetchall()
-#
-# for idx, i in enumerate(small):
-#     img = Image.open(io.BytesIO(i[0]))
-#     img.save(f"dataset/check/{idx}.png")
-#
-# import pandas as pd
-# import matplotlib.pyplot as plt
-#
-# dat = pd.read_sql(f"SELECT length({lr_col}) from {table_name}", conn)
-# dat.hist(bins=20)
-# plt.show()
+from PIL import Image
+import io
+
+cursor.execute(
+    f"select {hr_col} from {table_name}"
+)
+small = cursor.fetchall()
+
+for idx, i in enumerate(small):
+    img = Image.open(io.BytesIO(i[0]))
+    img.save(f"dataset/check/{idx}.png")
+
+import pandas as pd
+import matplotlib.pyplot as plt
+
+dat = pd.read_sql(f"SELECT length({lr_col}) from {table_name}", conn)
+dat.hist(bins=20)
+plt.show()

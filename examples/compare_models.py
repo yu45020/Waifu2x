@@ -42,4 +42,4 @@ if __name__ == '__main__':
     print("Upconv_7 runtime: {:.3f}".format(time.time() - start_t))
     # 5.3s
     final = torch.cat([img_t, img_bicubic, img_t, img_dcscn, img_t, img_upconv7])
-    save_image(final, 'Readme_imgs/demo_true_bicubic_dcscn_upconv.png', nrow=2)
+    save_image(final, 'docs/demo_true_bicubic_dcscn_upconv.png', nrow=2)
