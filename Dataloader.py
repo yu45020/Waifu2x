@@ -1,5 +1,6 @@
 import glob
 import io
+import numpy as np
 import re
 import os
 import random
@@ -138,7 +139,11 @@ class ImageDBData(Dataset):
             cursor = conn.cursor()
             cursor.execute(f"SELECT {self.lr_col}, {self.hr_col} FROM {self.db_table} WHERE ROWID={item + 1}")
             lr, hr = cursor.fetchone()
-            return to_tensor(Image.open(io.BytesIO(lr))), to_tensor(Image.open(io.BytesIO(hr)))
+            lr = Image.open(io.BytesIO(lr)).convert("RGB")
+            hr = Image.open(io.BytesIO(hr)).convert("RGB")
+            # lr = np.array(lr)  # use scale [0, 255] instead of [0,1]
+            # hr = np.array(hr)
+            return to_tensor(lr), to_tensor(hr)
 
 
 class ImagePatchData(Dataset):

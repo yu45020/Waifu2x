@@ -9,6 +9,10 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 
+# +++++++++++++++++++++++++++++++++++++
+#           SSIM
+# -------------------------------------
+
 def gaussian(window_size, sigma):
     gauss = torch.Tensor([exp(-(x - window_size // 2) ** 2 / float(2 * sigma ** 2)) for x in range(window_size)])
     return gauss / gauss.sum()
@@ -158,3 +162,16 @@ def calc_psnr(sr, hr, scale=0, benchmark=False):
     mse = valid.pow(2).mean()
 
     return -10 * math.log10(mse)
+
+
+# +++++++++++++++++++++++++++++++++++++
+#           PSNR      
+# -------------------------------------
+from torch import nn
+
+
+def psnr(predict, target):
+    with torch.no_grad():
+        criteria = nn.MSELoss()
+        mse = criteria(predict, target)
+        return 10 * torch.log10(1 / mse)

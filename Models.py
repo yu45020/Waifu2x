@@ -181,7 +181,7 @@ class CARN(BaseModule):
 
 
 class CARN_V2(CARN):
-    def __init__(self, color_channels=3, mid_channels=64, scale=2, activation=nn.SELU(),
+    def __init__(self, color_channels=3, mid_channels=64, scale=2, activation=nn.LeakyReLU(0.1),
                  SEBlock=False, conv=nn.Conv2d, atrous=(1, 1, 1), repeat_blocks=3,
                  single_conv_size=1, single_conv_group=1):
         super(CARN_V2, self).__init__(color_channels=color_channels, mid_channels=mid_channels, scale=scale,
@@ -203,10 +203,24 @@ class CARN_V2(CARN):
                         activation=activation, conv=conv)
               for i in range(num_blocks)])
 
+    # def forward(self, x):
+    #     x = self.entry_block(x)
+    #     c0 = x
+    #     res = x
+    #     for block, single in zip(self.blocks, self.singles):
+    #         b = block(x)
+    #         c0 = c = torch.cat([c0, b], dim=1)
+    #         x = single(c)
+    #     x = x + res
+    #     x = self.upsampler(x)
+    #     out = self.exit_conv(x)
+    #     return out
+
     def forward(self, x):
         res = nn.functional.interpolate(x, scale_factor=2, mode='bilinear', align_corners=False)
         out = super().forward(x)
         return res + out
+
 
 # +++++++++++++++++++++++++++++++++++++
 
@@ -221,7 +235,8 @@ class UpConv_7(BaseModule):
         super(UpConv_7, self).__init__()
         self.act_fn = nn.LeakyReLU(0.1, inplace=False)
         self.offset = 7  # because of 0 padding
-
+        from torch.nn import ZeroPad2d
+        self.pad = ZeroPad2d(self.offset)
         m = [nn.Conv2d(3, 16, 3, 1, 0),
              self.act_fn,
              nn.Conv2d(16, 32, 3, 1, 0),
@@ -250,8 +265,9 @@ class UpConv_7(BaseModule):
         for index, (name, param) in enumerate(own_state.items()):
             own_state[name].copy_(torch.FloatTensor(box[index]))
 
-    def forward(self, *x):
-        return self.Sequential.forward(*x)
+    def forward(self, x):
+        x = self.pad(x)
+        return self.Sequential.forward(x)
 
     def forward_checkpoint(self, x):
         with torch.no_grad():
