@@ -9,6 +9,7 @@
 Optinal: Nvidia GPU. Model inference can run in cpu only. 
 
 ## What's New
+Model is still in training. Checkpoints will be available later.
 * Add [CARN Model (Fast, Accurate, and Lightweight Super-Resolution with Cascading Residual Network)](https://github.com/nmhkahn/CARN-pytorch). Model Codes are adapted from the authors's [github repo](https://github.com/nmhkahn/CARN-pytorch). I test extra features on [Spatial Channel Squeeze Excitation](https://arxiv.org/abs/1709.01507), Atrous Convolution, and [Partial Based Padding Scheme](https://github.com/NVIDIA/partialconv).  Losses and Plots can be found in [here](./Readme_imgs/CARN).
 
 
