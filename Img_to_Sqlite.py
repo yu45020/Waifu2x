@@ -7,26 +7,24 @@ Recommend to check or filter out small size patches as their content vary little
 
 """
 import sqlite3
-
 from torch.utils.data import DataLoader
 from tqdm import trange
-
 from Dataloader import Image2Sqlite
 
-conn = sqlite3.connect('dataset/test2.db')
+conn = sqlite3.connect('dataset/image_yandere.db')
 cursor = conn.cursor()
 
 with conn:
     cursor.execute("PRAGMA SYNCHRONOUS = OFF")
 
-table_name = "test_images_size_128_noise_1_rgb"
+table_name = "train_images_size_128_noise_1_rgb"
 lr_col = "lr_img"
 hr_col = "hr_img"
 
 with conn:
     conn.execute(f"CREATE TABLE IF NOT EXISTS {table_name} ({lr_col} BLOB, {hr_col} BLOB)")
 
-dat = Image2Sqlite(img_folder='dataset/test2',
+dat = Image2Sqlite(img_folder='./dataset/yande.re_test_shrink',
                    patch_size=256,
                    shrink_size=2,
                    noise_level=1,
@@ -45,33 +43,38 @@ for i in trange(num_batches):
         # patches = [(lrs[i], hrs[i]) for i in range(len(lrs)) if len(lrs[i]) > 14000]
 
         bulk.extend(patches)
-    bulk = [i for i in bulk if len(i[0]) > 14000]  # for 128x128, 14000 is fair. Around 20% of patches are filtered out
+
+    bulk = [i for i in bulk if len(i[0]) > 15000]  # for 128x128, 14000 is fair. Around 20% of patches are filtered out
     cursor.executemany(f"INSERT INTO {table_name}({lr_col}, {hr_col}) VALUES (?,?)", bulk)
     conn.commit()
 
 cursor.execute(f"select max(rowid) from {table_name}")
-cursor.fetchall()
-
-cursor.execute(f"SELECT ROWID FROM {table_name} ORDER BY LENGTH({lr_col}) DESC LIMIT 100")
-rowdis = cursor.fetchall()
-rowdis = ",".join([str(i[0]) for i in rowdis])
-
-cursor.execute(f"DELETE FROM {table_name} WHERE ROWID NOT IN ({rowdis})")
+print(cursor.fetchall())
 conn.commit()
-cursor.execute("vacuum")
+# +++++++++++++++++++++++++++++++++++++
+#           Used for Create Test Database
+# -------------------------------------
 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS train_images_size_128_noise_1_rgb_small AS
-SELECT *
-FROM train_images_size_128_noise_1_rgb
-WHERE length(lr_img) < 14000;
-""")
-
-cursor.execute("""
-DELETE
-FROM train_images_size_128_noise_1_rgb
-WHERE length(lr_img) < 14000;
-""")
+# cursor.execute(f"SELECT ROWID FROM {table_name} ORDER BY LENGTH({lr_col}) DESC LIMIT 400")
+# rowdis = cursor.fetchall()
+# rowdis = ",".join([str(i[0]) for i in rowdis])
+#
+# cursor.execute(f"DELETE FROM {table_name} WHERE ROWID NOT IN ({rowdis})")
+# conn.commit()
+# cursor.execute("vacuum")
+#
+# cursor.execute("""
+# CREATE TABLE IF NOT EXISTS train_images_size_128_noise_1_rgb_small AS
+# SELECT *
+# FROM train_images_size_128_noise_1_rgb
+# WHERE length(lr_img) < 14000;
+# """)
+#
+# cursor.execute("""
+# DELETE
+# FROM train_images_size_128_noise_1_rgb
+# WHERE length(lr_img) < 14000;
+# """)
 
 # reset index
 cursor.execute("VACUUM")
@@ -81,18 +84,28 @@ conn.commit()
 #           check image size
 # -------------------------------------
 #
-#
+
 from PIL import Image
 import io
 
 cursor.execute(
-    f"select {hr_col} from {table_name}"
+    f"""
+    select {hr_col} from {table_name} 
+    ORDER BY LENGTH({hr_col}) desc 
+    limit 100
+"""
 )
-small = cursor.fetchall()
+# WHERE LENGTH({lr_col}) BETWEEN 14000 AND 16000
 
-for idx, i in enumerate(small):
+# small = cursor.fetchall()
+# print(len(small))
+for idx, i in enumerate(cursor):
     img = Image.open(io.BytesIO(i[0]))
     img.save(f"dataset/check/{idx}.png")
+
+# +++++++++++++++++++++++++++++++++++++
+#           Check Image Variance
+# -------------------------------------
 
 import pandas as pd
 import matplotlib.pyplot as plt

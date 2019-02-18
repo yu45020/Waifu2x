@@ -203,28 +203,26 @@ class CARN_V2(CARN):
                         activation=activation, conv=conv)
               for i in range(num_blocks)])
 
-    # def forward(self, x):
-    #     x = self.entry_block(x)
-    #     c0 = x
-    #     res = x
-    #     for block, single in zip(self.blocks, self.singles):
-    #         b = block(x)
-    #         c0 = c = torch.cat([c0, b], dim=1)
-    #         x = single(c)
-    #     x = x + res
-    #     x = self.upsampler(x)
-    #     out = self.exit_conv(x)
-    #     return out
-
     def forward(self, x):
-        res = nn.functional.interpolate(x, scale_factor=2, mode='bilinear', align_corners=False)
-        out = super().forward(x)
-        return res + out
+        x = self.entry_block(x)
+        c0 = x
+        res = x
+        for block, single in zip(self.blocks, self.singles):
+            b = block(x)
+            c0 = c = torch.cat([c0, b], dim=1)
+            x = single(c)
+        x = x + res
+        x = self.upsampler(x)
+        out = self.exit_conv(x)
+        return out
+
+    # def forward(self, x):
+    #     res = nn.functional.interpolate(x, scale_factor=2, mode='bilinear', align_corners=False)
+    #     out = super().forward(x)
+    #     return res + out
 
 
 # +++++++++++++++++++++++++++++++++++++
-
-
 #           original Waifu2x model
 # -------------------------------------
 

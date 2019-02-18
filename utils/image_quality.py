@@ -106,11 +106,7 @@ def msssim(img1, img2, window_size=11, size_average=True):
         raise RuntimeError('Input images must have four dimensions, not %d' %
                            len(img1.size()))
 
-    if type(img1) is not Variable or type(img2) is not Variable:
-        img1 = Variable(img1)
-        img2 = Variable(img2)
-
-    weights = Variable(torch.FloatTensor([0.0448, 0.2856, 0.3001, 0.2363, 0.1333]))
+    weights = torch.tensor([0.0448, 0.2856, 0.3001, 0.2363, 0.1333], dtype=img1.dtype)
     if img1.is_cuda:
         weights = weights.cuda(img1.get_device())
 
@@ -174,4 +170,4 @@ def psnr(predict, target):
     with torch.no_grad():
         criteria = nn.MSELoss()
         mse = criteria(predict, target)
-        return 10 * torch.log10(1 / mse)
+        return -10 * torch.log10(mse)

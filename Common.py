@@ -28,10 +28,11 @@ class BaseModule(nn.Module):
                 m.weight.data.normal_(0, 1.0 / sqrt(m.weight.numel()))
                 m.bias.data.zero_()
 
-    def initialize_weights(self):
+    def initialize_weights_xavier_uniform(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d) and m.weight.requires_grad:
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='leaky_relu')
+                # nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='leaky_relu')
+                nn.init.xavier_uniform_(m.weight)
                 if m.bias is not None:
                     m.bias.data.zero_()
             elif isinstance(m, nn.BatchNorm2d) and m.weight.requires_grad:

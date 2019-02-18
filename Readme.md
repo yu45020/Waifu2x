@@ -9,12 +9,29 @@
 Optinal: Nvidia GPU. Model inference can run in cpu only. 
 
 ## What's New
-* Add [CARN Model (Fast, Accurate, and Lightweight Super-Resolution with Cascading Residual Network)](https://github.com/nmhkahn/CARN-pytorch). Model Codes are adapted from the authors's [github repo](https://github.com/nmhkahn/CARN-pytorch). I test extra features on [Spatial Channel Squeeze Excitation](https://arxiv.org/abs/1709.01507), Atrous Convolution, and [Partial Based Padding Scheme](https://github.com/NVIDIA/partialconv).  Losses and Plots can be found in [here](./Readme_imgs/CARN).
+* Add [CARN Model (Fast, Accurate, and Lightweight Super-Resolution with Cascading Residual Network)](https://github.com/nmhkahn/CARN-pytorch). Model Codes are adapted from the authors's [github repo](https://github.com/nmhkahn/CARN-pytorch). I add [Spatial Channel Squeeze Excitation](https://arxiv.org/abs/1709.01507) and swap all 1x1 convolution with 3x3 standard convolutions. The model is trained in fp 16 with Nvidia's [apex](https://github.com/NVIDIA/apex). Details and plots on model variant can be found in [docs/CARN](./docs/CARN)
 
 
 ## Demos
 Examples can be found in the "example" folder, but they may require users to tweak some lines to load image. This project is under development, so it might not be user-friendly.  
 
+
+ ## Image Processing
+ Original images are all at least 3k x 3K. I downsample them into at most one side have 2048 with LANCZOS, then I randomly cut them into 256x256 as target  and use 128x128 with jpeg noise as input images. All input patches have at least 14 kb, and they are stored in SQLite with BLOB format. SQlite seems to have far [better performance](https://www.sqlite.org/intern-v-extern-blob.html) than file system for small objects.
+ 
+ Although convolutions can take in any sizes of images, the content of image matters. For real life images, small patches may maintain color,brightness, etc variances, but for digital drawn images, colors are added in block areas. A small patch may end up showing entirely one color, and the model has little to learn. 
+ 
+ For example, the following two plots come from CARN and have the same settings, including initial parameters. Both training loss and ssim are lower for 64x64, but they perform worse in test time compared to 128x128. 
+ 
+ ![loss](docs/CARN/plots/128_vs_64_model_loss.png)
+ ![ssim](docs/CARN/plots/128_vs_64_model_ssim.png)
+  
+
+Down sampling methods  are uniformly chosen among ```[PIL.Image.BILINEAR, PIL.Image.BICUBIC, PIL.Image.LANCZOS]``` , so different patches in the same image might be down-scaled in different ways. 
+
+Image noise are from JPEG format only. They are added by re-encoding PNG images into PIL's JPEG data with various quality. Noise level 1 means quality ranges uniformly from [75, 95]; level 2 means quality ranges uniformly from [50, 75]. 
+ 
+ 
 
  ## Models
  #### Models Comparison
@@ -24,16 +41,16 @@ I am not able to distinguish the outcome between DCSCN and Upconv, which is the 
  ##### 2x upscale
   Images are from [Key: サマボケ(Summer Pocket)](http://key.visualarts.gr.jp/summer/).
 
- ![models_comparison](Readme_imgs/demo_bicubic_dcscn_upconv.png)
+ ![models_comparison](docs/demo_bicubic_dcscn_upconv.png)
 (Ensembling is NOT used.)
 
  ##### Memory usage
  The image is cropped into 48x48 overlapping patches and then merged back to save memory and reduce runtime. 
- ![memory](Readme_imgs/memory_profile.JPG)
+ ![memory](docs/memory_profile.JPG)
  
  ##### Another Example
  The image is 2x down scaled by Image.BICUBIC and then up scaled.
- ![upscales](Readme_imgs/demo_true_bicubic_dcscn_upconv.png)
+ ![upscales](docs/demo_true_bicubic_dcscn_upconv.png)
 
  
  
@@ -71,7 +88,7 @@ Networks](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=4&cad=rj
  
  I need to thank jiny2001 (one of the paper's author) to test the difference of SELU and PRELU. SELU seems more stable and has fewer parameters to train. It is a good drop in replacement
  >layers=8, filters=96 and dataset=yang91+bsd200. 
- ![](Readme_imgs/DCSCN_comparison/selu_prelu.png)
+ ![](docs/DCSCN_comparison/selu_prelu.png)
  The details can be found in [here]( https://github.com/jiny2001/dcscn-super-resolution/issues/29). 
  
  
@@ -85,11 +102,11 @@ Networks](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=4&cad=rj
 
 Another more effective model is to add upscaled input image to the final convolution. A simple bilinear upscaled image seems sufficient. 
 
-More examples on model configurations can be found in [Readme_imgs/CARN folder](./Readme_imgs/CARN/carn_plot_loss.md)
+More examples on model configurations can be found in [docs/CARN folder](./docs/CARN/carn_plot_loss.md)
 
-![img](Readme_imgs/CARN/plots/CARN_Compare.png)
+![img](docs/CARN/plots/CARN_Compare.png)
 
-![img](Readme_imgs/CARN/plots/CARN_Compare_Res_Add.png)
+![img](docs/CARN/plots/CARN_Compare_Res_Add.png)
 
 ### Waifu2x Original Models 
 Models can load waifu2x's pre-trained weights.  The function ```forward_checkpoint```  sets the ```nn.LeakyReLU``` to compute data inplace.
@@ -99,36 +116,3 @@ Original waifu2x's model. PyTorch's implementation with cpu only is around 5 tim
 
 #### Vgg_7
 Not tested yet, but it is ready to use. 
-
-
- #### ESPCN_7
- * Need more configurations and tests. 
- 
-
-Modified from [Real-Time Single Image and Video Super-Resolution Using an Efficient Sub-Pixel Convolutional Neural Network](https://arxiv.org/abs/1609.05158).  Computations are done on the low resolution images, and the  last layer is Pixel Shuffle that scale up the input image. 
-
-A selection unit is added in between of convolutional filters.  Details on the selection unit can be found in [A Deep Convolutional Neural Network with Selection Units for Super-Resolution](http://openaccess.thecvf.com/content_cvpr_2017_workshops/w12/papers/Choi_A_Deep_Convolutional_CVPR_2017_paper.pdf). But the activation function is changed to SELU. It seems quite powerful.
-
-![ESPCN_7 Loss](./Readme_imgs/ESPCN_7_loss.png) 
-
-
-
- ## Image Processing
- High resolution PNGs are cropped into 96x96 non-overlapping patches, so some parts of images are dropped. A lesson I learn is that DON'T save processed patches. I save over 2x80 thousands small patches (both high and low resolution), and I fail to open the folder. 
- 
- High resolution images are loaded all at once in memory and cut into patches. Low resolution patches are also saved in  memory. They are then dumped into PyTorch's dataloader and feed into the neural net. 
- 
-
-Re-sampling methods  are uniformly chosen among ```[PIL.Image.BILINEAR, PIL.Image.BICUBIC, PIL.Image.LANCZOS]``` , so different patches in the same image might be down-scaled in different ways. 
-
-Image noise are from JPEG format only. They are added by re-encoding PNG images into PIL's JPEG data with various quality. Noise level 1 means quality ranges uniformly from [75, 95]; level 2 means quality ranges uniformly from [50, 75]. 
- 
- 
- 
- ## TODO: 
- * [ESPCN] for real time ? 
- * [DRRN](http://cvlab.cse.msu.edu/pdfs/Tai_Yang_Liu_CVPR2017.pdf) (planned)
- (Note: DRRN is not realistic for CPU only usage. A modified version might be used.)
- * and find some interesting paper
- 
- 

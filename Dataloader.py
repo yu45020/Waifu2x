@@ -14,13 +14,6 @@ from torch.utils.data import Dataset
 from torchvision.transforms import RandomCrop
 from torchvision.transforms.functional import to_tensor
 
-use_cuda = torch.cuda.is_available()
-FloatTensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
-LongTensor = torch.cuda.LongTensor if use_cuda else torch.LongTensor
-Tensor = FloatTensor
-
-
-# h5py.File("train_images.h5py", 'r', driver='mpio',comm=MPI.COMM_WORLD)
 
 class ImageH5Data(Dataset):
     def __init__(self, h5py_file, folder_name):
@@ -118,9 +111,16 @@ class ImageDBData(Dataset):
         self.lr_col = lr_col
         self.hr_col = hr_col
         self.total_images = self.get_num_rows(max_images)
+        # self.lr_hr_images = self.get_all_images()
 
     def __len__(self):
         return self.total_images
+
+    # def get_all_images(self):
+    #     with sqlite3.connect(self.db_file) as conn:
+    #         cursor = conn.cursor()
+    #         cursor.execute(f"SELECT * FROM {self.db_table} LIMIT {self.total_images}")
+    #         return cursor.fetchall()
 
     def get_num_rows(self, max_images):
         with sqlite3.connect(self.db_file) as conn:
@@ -133,8 +133,11 @@ class ImageDBData(Dataset):
             return db_rows
 
     def __getitem__(self, item):
+        # lr, hr = self.lr_hr_images[item]
+        # lr = Image.open(io.BytesIO(lr))
+        # hr = Image.open(io.BytesIO(hr))
+        # return to_tensor(lr), to_tensor(hr)
         # note sqlite rowid starts with 1
-        # conn = sqlite3.connect(self.db_file)
         with sqlite3.connect(self.db_file) as conn:
             cursor = conn.cursor()
             cursor.execute(f"SELECT {self.lr_col}, {self.hr_col} FROM {self.db_table} WHERE ROWID={item + 1}")
