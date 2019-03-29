@@ -5,6 +5,35 @@ from math import exp
 from Common import *
 
 
+# +++++++++++++++++++++++++++++++++++++
+#           FP16 Training      
+# -------------------------------------
+#  Modified from Nvidia/Apex
+# https://github.com/NVIDIA/apex/blob/master/apex/fp16_utils/fp16util.py
+
+class tofp16(nn.Module):
+    def __init__(self):
+        super(tofp16, self).__init__()
+
+    def forward(self, input):
+        if input.is_cuda:
+            return input.half()
+        else:  # PyTorch 1.0 doesn't support fp16 in CPU
+            return input.float()
+
+
+def BN_convert_float(module):
+    if isinstance(module, torch.nn.modules.batchnorm._BatchNorm):
+        module.float()
+    for child in module.children():
+        BN_convert_float(child)
+    return module
+
+
+def network_to_half(network):
+    return nn.Sequential(tofp16(), BN_convert_float(network.half()))
+
+
 # warnings.simplefilter('ignore')
 
 # +++++++++++++++++++++++++++++++++++++
@@ -181,9 +210,11 @@ class CARN(BaseModule):
 
 
 class CARN_V2(CARN):
-    def __init__(self, color_channels=3, mid_channels=64, scale=2, activation=nn.LeakyReLU(0.1),
-                 SEBlock=False, conv=nn.Conv2d, atrous=(1, 1, 1), repeat_blocks=3,
-                 single_conv_size=1, single_conv_group=1):
+    def __init__(self, color_channels=3, mid_channels=64,
+                 scale=2, activation=nn.LeakyReLU(0.1),
+                 SEBlock=True, conv=nn.Conv2d,
+                 atrous=(1, 1, 1), repeat_blocks=3,
+                 single_conv_size=3, single_conv_group=1):
         super(CARN_V2, self).__init__(color_channels=color_channels, mid_channels=mid_channels, scale=scale,
                                       activation=activation, conv=conv)
 
@@ -193,8 +224,7 @@ class CARN_V2(CARN):
             m.append(CARN_Block(mid_channels, kernel_size=3, padding=1, dilation=1,
                                 activation=activation, SEBlock=SEBlock, conv=conv, repeat=repeat_blocks,
                                 single_conv_size=single_conv_size, single_conv_group=single_conv_group))
-            # m.append(ResidualFixBlock(mid_channels, mid_channels, kernel_size=3, padding=atrous[i], dilation=atrous[i],
-            #                           groups=1, activation=activation, conv=conv))
+
         self.blocks = nn.Sequential(*m)
 
         self.singles = nn.Sequential(
@@ -215,11 +245,6 @@ class CARN_V2(CARN):
         x = self.upsampler(x)
         out = self.exit_conv(x)
         return out
-
-    # def forward(self, x):
-    #     res = nn.functional.interpolate(x, scale_factor=2, mode='bilinear', align_corners=False)
-    #     out = super().forward(x)
-    #     return res + out
 
 
 # +++++++++++++++++++++++++++++++++++++
@@ -267,10 +292,6 @@ class UpConv_7(BaseModule):
         x = self.pad(x)
         return self.Sequential.forward(x)
 
-    def forward_checkpoint(self, x):
-        with torch.no_grad():
-            out = self.forward(x)
-        return out
 
 
 class Vgg_7(UpConv_7):

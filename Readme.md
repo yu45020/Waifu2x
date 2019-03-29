@@ -1,25 +1,68 @@
 # Waifu2x
 
- Re-implementation on the original [waifu2x](https://github.com/nagadomi/waifu2x) in PyTorch with additional super resolution models. 
+ Re-implementation on the original [waifu2x](https://github.com/nagadomi/waifu2x) in PyTorch with additional super resolution models. This repo is mainly used to explore interesting super resolution models. User-friendly tools may not be available now ><.  
 
 ## Dependencies 
 * Python 3x
-* PyTorch >= 0.41
+* [PyTorch](https://pytorch.org/) >= 1 ( > 0.41 shall also work, but not guarantee)
+* [Nvidia/Apex](https://github.com/NVIDIA/apex/) (used for mixed precision training, you may use the [python codes](https://github.com/NVIDIA/apex/tree/master/apex/fp16_utils) directly)
 
-Optinal: Nvidia GPU. Model inference can run in cpu only. 
+Optinal: Nvidia GPU. Model inference (32 fp only) can run in cpu only. 
 
 ## What's New
 * Add [CARN Model (Fast, Accurate, and Lightweight Super-Resolution with Cascading Residual Network)](https://github.com/nmhkahn/CARN-pytorch). Model Codes are adapted from the authors's [github repo](https://github.com/nmhkahn/CARN-pytorch). I add [Spatial Channel Squeeze Excitation](https://arxiv.org/abs/1709.01507) and swap all 1x1 convolution with 3x3 standard convolutions. The model is trained in fp 16 with Nvidia's [apex](https://github.com/NVIDIA/apex). Details and plots on model variant can be found in [docs/CARN](./docs/CARN)
 
+* Dilated Convolution seems less effective (if not make the model worse) in super resolution, though it brings some improvement in image segmentation, especially when dilated rate increases and then decreases. Further investigation is needed. 
 
-## Demos
-Examples can be found in the "example" folder, but they may require users to tweak some lines to load image. This project is under development, so it might not be user-friendly.  
+## How to Use 
+Compare the input image and upscaled image
+```python
+from utils.prepare_images import *
+from Models import *
+from torchvision.utils import save_image
+model_cran_v2 = CARN_V2(color_channels=3, mid_channels=64, conv=nn.Conv2d,
+                        single_conv_size=3, single_conv_group=1,
+                        scale=2, activation=nn.LeakyReLU(0.1),
+                        SEBlock=True, repeat_blocks=3, atrous=(1, 1, 1))
+                        
+model_cran_v2 = network_to_half(model_cran_v2)
+checkpoint = "model_check_points/CRAN_V2/CARN_model_checkpoint.pt"
+model_cran_v2.load_state_dict(torch.load(checkpoint, 'cpu'))
+# if use GPU, then comment out the next line so it can use fp16. 
+model_cran_v2 = model_cran_v2.float() 
 
+demo_img = "input_image.png"
+img = Image.open(demo_img).convert("RGB")
 
- ## Image Processing
- Original images are all at least 3k x 3K. I downsample them into at most one side have 2048 with LANCZOS, then I randomly cut them into 256x256 as target  and use 128x128 with jpeg noise as input images. All input patches have at least 14 kb, and they are stored in SQLite with BLOB format. SQlite seems to have far [better performance](https://www.sqlite.org/intern-v-extern-blob.html) than file system for small objects.
+# origin
+img_t = to_tensor(img).unsqueeze(0) 
+
+# used to compare the origin
+img = img.resize((img.size[0] // 2, img.size[1] // 2), Image.BICUBIC) 
+
+# overlapping split
+# if input image is too large, then split it into overlapped patches 
+# details can be found at [here](https://github.com/nagadomi/waifu2x/issues/238)
+img_splitter = ImageSplitter(seg_size=64, scale_factor=2, boarder_pad_size=3)
+img_patches = img_splitter.split_img_tensor(img, scale_method=None, img_pad=0)
+with torch.no_grad():
+    out = [model_cran_v2(i) for i in img_patches]
+img_upscale = img_splitter.merge_img_tensor(out)
+
+final = torch.cat([img_t, img_upscale])
+save_image(final, 'out.png', nrow=2)
+```
+
+ ## Training
  
- Although convolutions can take in any sizes of images, the content of image matters. For real life images, small patches may maintain color,brightness, etc variances, but for digital drawn images, colors are added in block areas. A small patch may end up showing entirely one color, and the model has little to learn. 
+ If possible, fp16 training is preferred because it is much faster with minimal quality decrease. 
+ 
+ Sample training script is available in `train.py`, but you may need to change some liens. 
+ 
+ ###  Image Processing
+ Original images are all at least 3k x 3K. I downsample them  by LANCZOS so that  one side has at most 2048, then I randomly cut them into 256x256 patches as target  and use 128x128 with jpeg noise as input images. All input patches have at least 14 kb, and they are stored in SQLite with BLOB format. SQlite seems to have [better performance](https://www.sqlite.org/intern-v-extern-blob.html) than file system for small objects. H5 file format may not be optimal because of its larger size. 
+ 
+ Although convolutions can take in any sizes of images, the content of image matters. For real life images, small patches may maintain color,brightness, etc variances in small regions, but for digital drawn images, colors are added in block areas. A small patch may end up showing entirely one color, and the model has little to learn. 
  
  For example, the following two plots come from CARN and have the same settings, including initial parameters. Both training loss and ssim are lower for 64x64, but they perform worse in test time compared to 128x128. 
  
@@ -27,32 +70,37 @@ Examples can be found in the "example" folder, but they may require users to twe
  ![ssim](docs/CARN/plots/128_vs_64_model_ssim.png)
   
 
-Down sampling methods  are uniformly chosen among ```[PIL.Image.BILINEAR, PIL.Image.BICUBIC, PIL.Image.LANCZOS]``` , so different patches in the same image might be down-scaled in different ways. 
+Downsampling methods  are uniformly chosen among ```[PIL.Image.BILINEAR, PIL.Image.BICUBIC, PIL.Image.LANCZOS]``` , so different patches in the same image might be down-scaled in different ways. 
 
 Image noise are from JPEG format only. They are added by re-encoding PNG images into PIL's JPEG data with various quality. Noise level 1 means quality ranges uniformly from [75, 95]; level 2 means quality ranges uniformly from [50, 75]. 
  
- 
 
  ## Models
+ Models are tuned and modified with extra features. 
+ 
+ 
+* [DCSCN 12](https://github.com/jiny2001/dcscn-super-resolution) 
+
+* [CRAN](https://github.com/nmhkahn/CARN-pytorch)
+ 
+ #### From [Waifu2x](https://github.com/nagadomi/waifu2x)
+ * [Upconv7](https://github.com/nagadomi/waifu2x/blob/7d156917ae1113ab847dab15c75db7642231e7fa/lib/srcnn.lua#L360)
+ 
+ * [Vgg_7](https://github.com/nagadomi/waifu2x/blob/7d156917ae1113ab847dab15c75db7642231e7fa/lib/srcnn.lua#L334)
+ 
+ * [Cascaded Residual U-Net with SEBlock](https://github.com/nagadomi/waifu2x/blob/7d156917ae1113ab847dab15c75db7642231e7fa/lib/srcnn.lua#L514) (PyTorch codes are not available and under testing)
+ 
  #### Models Comparison
+   Images are from [Key: サマボケ(Summer Pocket)](http://key.visualarts.gr.jp/summer/).
  
-I am not able to distinguish the outcome between DCSCN and Upconv, which is the main model in waifu2x. Note, the first model runs 5x slower than the second model. 
-
- ##### 2x upscale
-  Images are from [Key: サマボケ(Summer Pocket)](http://key.visualarts.gr.jp/summer/).
-
- ![models_comparison](docs/demo_bicubic_dcscn_upconv.png)
-(Ensembling is NOT used.)
-
- ##### Memory usage
- The image is cropped into 48x48 overlapping patches and then merged back to save memory and reduce runtime. 
- ![memory](docs/memory_profile.JPG)
+ The left column is the original image, and the right column is bicubic, DCSCN, CRAN_V2
  
- ##### Another Example
- The image is 2x down scaled by Image.BICUBIC and then up scaled.
- ![upscales](docs/demo_true_bicubic_dcscn_upconv.png)
+![img](docs/demo_bicubic_model_comparison.png)
 
- 
+
+![img](docs/demo_true_bicubic_dcscn_upconv.png)
+
+
  
  ##### Scores
  The list will be updated after I add more models. 
@@ -61,7 +109,8 @@ Images are twitter icons (PNG) from [Key: サマボケ(Summer Pocket)](http://ke
 
 |       | Total Parameters | BICUBIC  | Random* |
 | :---: | :---:   | :---:  |  :---:  |
-| DCSCN 12 |1,889,974 | 31.5358 (0.9851) |     31.1457 (0.9834) |   
+| CRAN V2| 2,149,607 | 34.0985 (0.9924) |  34.0509 (0.9922) |
+| DCSCN 12 |1,889,974 | 31.5358 (0.9851) | 31.1457 (0.9834) |   
 | Upconv 7| 552,480|  31.4566 (0.9788) |   30.9492 (0.9772)   |
 
 *uniformly select down scale methods from Image.BICUBIC, Image.BILINEAR, Image.LANCZOS.
