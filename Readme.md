@@ -112,6 +112,7 @@ Images are twitter icons (PNG) from [Key: サマボケ(Summer Pocket)](http://ke
 | CRAN V2| 2,149,607 | 34.0985 (0.9924) |  34.0509 (0.9922) |
 | DCSCN 12 |1,889,974 | 31.5358 (0.9851) | 31.1457 (0.9834) |   
 | Upconv 7| 552,480|  31.4566 (0.9788) |   30.9492 (0.9772)   |
+
 *uniformly select down scale methods from Image.BICUBIC, Image.BILINEAR, Image.LANCZOS.
             
 
