@@ -1,4 +1,4 @@
-from apex.fp16_utils import FP16_Optimizer, network_to_half
+from apex.fp16_utils import FP16_Optimizer
 from torch import optim
 from torch.utils.data import DataLoader
 from torchvision.utils import save_image
@@ -43,7 +43,29 @@ model = CARN_V2(color_channels=3, mid_channels=64, conv=nn.Conv2d,
 # model.load_state_dict(torch.load("model_check_points/DCSCN/DCSCN_weights_387epos_L12_noise_1.pt"))
 
 model.total_parameters()
-model.initialize_weights_xavier_uniform()
+
+
+# model.initialize_weights_xavier_uniform()
+
+class tofp16(nn.Module):
+    def __init__(self):
+        super(tofp16, self).__init__()
+
+    def forward(self, input):
+        return input.half()
+
+
+def BN_convert_float(module):
+    if isinstance(module, torch.nn.modules.batchnorm._BatchNorm):
+        module.float()
+    for child in module.children():
+        BN_convert_float(child)
+    return module
+
+
+def network_to_half(network):
+    return nn.Sequential(tofp16(), BN_convert_float(network.half()))
+
 
 model = network_to_half(model)
 model = model.cuda()

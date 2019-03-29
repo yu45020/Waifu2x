@@ -1,10 +1,11 @@
 # Waifu2x
 
- Re-implementation on the original [waifu2x](https://github.com/nagadomi/waifu2x) in PyTorch with additional super resolution models. 
+ Re-implementation on the original [waifu2x](https://github.com/nagadomi/waifu2x) in PyTorch with additional super resolution models. This repo is mainly used to explore interesting super resolution models, and user-friendly tools may not be available now.  
 
 ## Dependencies 
 * Python 3x
-* PyTorch >= 0.41
+* [PyTorch](https://pytorch.org/) >= 1 ( > 0.41 shall also work, but not guarantee)
+* [Nvidia/Apex](https://github.com/NVIDIA/apex/) (used for 16fp training)
 
 Optinal: Nvidia GPU. Model inference can run in cpu only. 
 
@@ -12,8 +13,6 @@ Optinal: Nvidia GPU. Model inference can run in cpu only.
 * Add [CARN Model (Fast, Accurate, and Lightweight Super-Resolution with Cascading Residual Network)](https://github.com/nmhkahn/CARN-pytorch). Model Codes are adapted from the authors's [github repo](https://github.com/nmhkahn/CARN-pytorch). I add [Spatial Channel Squeeze Excitation](https://arxiv.org/abs/1709.01507) and swap all 1x1 convolution with 3x3 standard convolutions. The model is trained in fp 16 with Nvidia's [apex](https://github.com/NVIDIA/apex). Details and plots on model variant can be found in [docs/CARN](./docs/CARN)
 
 
-## Demos
-Examples can be found in the "example" folder, but they may require users to tweak some lines to load image. This project is under development, so it might not be user-friendly.  
 
 
  ## Image Processing
@@ -34,25 +33,23 @@ Image noise are from JPEG format only. They are added by re-encoding PNG images 
  
 
  ## Models
+ Models are tuned and modified with extra features. 
+ 
+ 
+* [DCSCN 12](https://github.com/jiny2001/dcscn-super-resolution) 
+
+* [CRAN](https://github.com/nmhkahn/CARN-pytorch)
+ 
+ #### From [Waifu2x](https://github.com/nagadomi/waifu2x)
+ * [Upconv7](https://github.com/nagadomi/waifu2x/blob/7d156917ae1113ab847dab15c75db7642231e7fa/lib/srcnn.lua#L360)
+ 
+ * [Vgg_7](https://github.com/nagadomi/waifu2x/blob/7d156917ae1113ab847dab15c75db7642231e7fa/lib/srcnn.lua#L334)
+ 
+ * [Cascaded Residual U-Net with SEBlock](https://github.com/nagadomi/waifu2x/blob/7d156917ae1113ab847dab15c75db7642231e7fa/lib/srcnn.lua#L514) (PyTorch codes are not available and under testing)
+ 
  #### Models Comparison
- 
-I am not able to distinguish the outcome between DCSCN and Upconv, which is the main model in waifu2x. Note, the first model runs 5x slower than the second model. 
+   Images are from [Key: サマボケ(Summer Pocket)](http://key.visualarts.gr.jp/summer/).
 
- ##### 2x upscale
-  Images are from [Key: サマボケ(Summer Pocket)](http://key.visualarts.gr.jp/summer/).
-
- ![models_comparison](docs/demo_bicubic_dcscn_upconv.png)
-(Ensembling is NOT used.)
-
- ##### Memory usage
- The image is cropped into 48x48 overlapping patches and then merged back to save memory and reduce runtime. 
- ![memory](docs/memory_profile.JPG)
- 
- ##### Another Example
- The image is 2x down scaled by Image.BICUBIC and then up scaled.
- ![upscales](docs/demo_true_bicubic_dcscn_upconv.png)
-
- 
  
  ##### Scores
  The list will be updated after I add more models. 
@@ -61,7 +58,7 @@ Images are twitter icons (PNG) from [Key: サマボケ(Summer Pocket)](http://ke
 
 |       | Total Parameters | BICUBIC  | Random* |
 | :---: | :---:   | :---:  |  :---:  |
-| DCSCN 12 |1,889,974 | 31.5358 (0.9851) |     31.1457 (0.9834) |   
+| DCSCN 12 |1,889,974 | 31.5358 (0.9851) | 31.1457 (0.9834) |   
 | Upconv 7| 552,480|  31.4566 (0.9788) |   30.9492 (0.9772)   |
 
 *uniformly select down scale methods from Image.BICUBIC, Image.BILINEAR, Image.LANCZOS.
