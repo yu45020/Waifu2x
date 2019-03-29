@@ -5,7 +5,7 @@
 ## Dependencies 
 * Python 3x
 * [PyTorch](https://pytorch.org/) >= 1 ( > 0.41 shall also work, but not guarantee)
-* [Nvidia/Apex](https://github.com/NVIDIA/apex/) (used for mixed precision  training)
+* [Nvidia/Apex](https://github.com/NVIDIA/apex/) (used for mixed precision training, you may use the [python codes](https://github.com/NVIDIA/apex/tree/master/apex/fp16_utils) directly)
 
 Optinal: Nvidia GPU. Model inference (32 fp only) can run in cpu only. 
 
