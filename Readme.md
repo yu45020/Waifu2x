@@ -1,6 +1,6 @@
 # Waifu2x
 
- Re-implementation on the original [waifu2x](https://github.com/nagadomi/waifu2x) in PyTorch with additional super resolution models. This repo is mainly used to explore interesting super resolution models, and user-friendly tools may not be available now.  
+ Re-implementation on the original [waifu2x](https://github.com/nagadomi/waifu2x) in PyTorch with additional super resolution models. This repo is mainly used to explore interesting super resolution models. User-friendly tools may not be available now ><.  
 
 ## Dependencies 
 * Python 3x
