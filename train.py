@@ -3,7 +3,7 @@ from torch import optim
 from torch.utils.data import DataLoader
 from torchvision.utils import save_image
 from tqdm import trange
-from collections import defaultdict
+
 from Dataloader import *
 from utils import image_quality
 from utils.cls import CyclicLR
@@ -12,23 +12,15 @@ from utils.prepare_images import *
 train_folder = './dataset/train'
 test_folder = "./dataset/test"
 
-# img_dataset = ImageData(train_folder,
-#                         patch_size=128,
-#                         shrink_size=2,
-#                         noise_level=1,
-#                         down_sample_method=None,
-#                         color_mod='RGB', dummy_len=None)
-
-
 img_dataset = ImageDBData(db_file='dataset/images.db', db_table="train_images_size_128_noise_1_rgb", max_images=24)
-img_data = DataLoader(img_dataset, batch_size=6, shuffle=True, num_workers=6, pin_memory=True)
+img_data = DataLoader(img_dataset, batch_size=6, shuffle=True, num_workers=6)
 
 total_batch = len(img_data)
 print(len(img_dataset))
 
 test_dataset = ImageDBData(db_file='dataset/test2.db', db_table="test_images_size_128_noise_1_rgb", max_images=None)
 num_test = len(test_dataset)
-test_data = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4, pin_memory=True)
+test_data = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=1)
 
 criteria = nn.L1Loss()
 
@@ -37,36 +29,12 @@ model = CARN_V2(color_channels=3, mid_channels=64, conv=nn.Conv2d,
                 scale=2, activation=nn.LeakyReLU(0.1),
                 SEBlock=True, repeat_blocks=3, atrous=(1, 1, 1))
 
-# model = UpConv_7()
-# model.load_pre_train_weights("model_check_points/Upconv_7/noise1_scale2.0x_model.json")
-# model = DCSCN()
-# model.load_state_dict(torch.load("model_check_points/DCSCN/DCSCN_weights_387epos_L12_noise_1.pt"))
-
 model.total_parameters()
 
 
 # model.initialize_weights_xavier_uniform()
 
-class tofp16(nn.Module):
-    def __init__(self):
-        super(tofp16, self).__init__()
-
-    def forward(self, input):
-        return input.half()
-
-
-def BN_convert_float(module):
-    if isinstance(module, torch.nn.modules.batchnorm._BatchNorm):
-        module.float()
-    for child in module.children():
-        BN_convert_float(child)
-    return module
-
-
-def network_to_half(network):
-    return nn.Sequential(tofp16(), BN_convert_float(network.half()))
-
-
+# fp16 training is available in GPU only
 model = network_to_half(model)
 model = model.cuda()
 model.load_state_dict(torch.load("CARN_model_checkpoint.pt"))

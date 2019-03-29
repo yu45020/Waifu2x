@@ -16,7 +16,7 @@ Optinal: Nvidia GPU. Model inference can run in cpu only.
 
 
  ## Image Processing
- Original images are all at least 3k x 3K. I downsample them  by LANCZOS so that  one side has at most 2048, then I randomly cut them into 256x256 patches as target  and use 128x128 with jpeg noise as input images. All input patches have at least 14 kb, and they are stored in SQLite with BLOB format. SQlite seems to have [better performance](https://www.sqlite.org/intern-v-extern-blob.html) than file system for small objects.
+ Original images are all at least 3k x 3K. I downsample them  by LANCZOS so that  one side has at most 2048, then I randomly cut them into 256x256 patches as target  and use 128x128 with jpeg noise as input images. All input patches have at least 14 kb, and they are stored in SQLite with BLOB format. SQlite seems to have [better performance](https://www.sqlite.org/intern-v-extern-blob.html) than file system for small objects. H5 file format may not be optimal because of its larger size. 
  
  Although convolutions can take in any sizes of images, the content of image matters. For real life images, small patches may maintain color,brightness, etc variances in small regions, but for digital drawn images, colors are added in block areas. A small patch may end up showing entirely one color, and the model has little to learn. 
  
@@ -29,6 +29,12 @@ Optinal: Nvidia GPU. Model inference can run in cpu only.
 Down sampling methods  are uniformly chosen among ```[PIL.Image.BILINEAR, PIL.Image.BICUBIC, PIL.Image.LANCZOS]``` , so different patches in the same image might be down-scaled in different ways. 
 
 Image noise are from JPEG format only. They are added by re-encoding PNG images into PIL's JPEG data with various quality. Noise level 1 means quality ranges uniformly from [75, 95]; level 2 means quality ranges uniformly from [50, 75]. 
+ 
+ ## Training
+ If possible, fp16 training is preferred because it is much faster with minimal quality decrease. 
+ 
+ Sample training script is available in `train.py`, but you may need to change some liens. 
+ 
  
  
 
@@ -58,9 +64,9 @@ Images are twitter icons (PNG) from [Key: サマボケ(Summer Pocket)](http://ke
 
 |       | Total Parameters | BICUBIC  | Random* |
 | :---: | :---:   | :---:  |  :---:  |
+| CRAN V2| 2,149,607 | 34.0985 (0.9924) |  34.0509 (0.9922) |
 | DCSCN 12 |1,889,974 | 31.5358 (0.9851) | 31.1457 (0.9834) |   
 | Upconv 7| 552,480|  31.4566 (0.9788) |   30.9492 (0.9772)   |
-
 *uniformly select down scale methods from Image.BICUBIC, Image.BILINEAR, Image.LANCZOS.
             
 
