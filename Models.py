@@ -292,10 +292,6 @@ class UpConv_7(BaseModule):
         x = self.pad(x)
         return self.Sequential.forward(x)
 
-    def forward_checkpoint(self, x):
-        with torch.no_grad():
-            out = self.forward(x)
-        return out
 
 
 class Vgg_7(UpConv_7):

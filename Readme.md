@@ -55,6 +55,14 @@ Image noise are from JPEG format only. They are added by re-encoding PNG images 
  
  #### Models Comparison
    Images are from [Key: サマボケ(Summer Pocket)](http://key.visualarts.gr.jp/summer/).
+ 
+ The left column is the original image, and the right column is bicubic, DCSCN, CRAN_V2
+ 
+![img](docs/demo_bicubic_model_comparison.png)
+
+
+![img](docs/demo_true_bicubic_dcscn_upconv.png)
+
 
  
  ##### Scores
