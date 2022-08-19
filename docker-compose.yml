@@ -1,0 +1,9 @@
+version: "3.9"
+
+services:
+  waifu:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    stdin_open: true
+    tty: true
