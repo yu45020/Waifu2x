@@ -17,11 +17,13 @@ from utils.prepare_images import *
 #               up_sampler_filters=32)
 # model.load_state_dict(torch.load(pre_train, map_location='cpu'))
 model = UpConv_7()
-model.load_pre_train_weights('./model_check_points/Upconv_7/noise1_scale2.0x_model.json')
+model.load_pre_train_weights(
+    "./model_check_points/Upconv_7/noise1_scale2.0x_model.json"
+)
 
 lr_imgs = glob.glob("./benchmark/Set14_SR/lr_imgs/*_LR.png")
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # model = torch.load("dcscn.pt")  # set the img_pad=0
     sp = ImageSplitter(seg_size=48, scale_factor=2, boarder_pad_size=3)
     for lr_img in lr_imgs:

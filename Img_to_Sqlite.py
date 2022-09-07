@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from tqdm import trange
 from Dataloader import Image2Sqlite
 
-conn = sqlite3.connect('dataset/image_yandere.db')
+conn = sqlite3.connect("dataset/image_yandere.db")
 cursor = conn.cursor()
 
 with conn:
@@ -22,15 +22,19 @@ lr_col = "lr_img"
 hr_col = "hr_img"
 
 with conn:
-    conn.execute(f"CREATE TABLE IF NOT EXISTS {table_name} ({lr_col} BLOB, {hr_col} BLOB)")
+    conn.execute(
+        f"CREATE TABLE IF NOT EXISTS {table_name} ({lr_col} BLOB, {hr_col} BLOB)"
+    )
 
-dat = Image2Sqlite(img_folder='./dataset/yande.re_test_shrink',
-                   patch_size=256,
-                   shrink_size=2,
-                   noise_level=1,
-                   down_sample_method=None,
-                   color_mod='RGB',
-                   dummy_len=None)
+dat = Image2Sqlite(
+    img_folder="./dataset/yande.re_test_shrink",
+    patch_size=256,
+    shrink_size=2,
+    noise_level=1,
+    down_sample_method=None,
+    color_mod="RGB",
+    dummy_len=None,
+)
 print(f"Total images {len(dat)}")
 
 img_dat = DataLoader(dat, num_workers=6, batch_size=6, shuffle=True)
@@ -44,8 +48,12 @@ for i in trange(num_batches):
 
         bulk.extend(patches)
 
-    bulk = [i for i in bulk if len(i[0]) > 15000]  # for 128x128, 14000 is fair. Around 20% of patches are filtered out
-    cursor.executemany(f"INSERT INTO {table_name}({lr_col}, {hr_col}) VALUES (?,?)", bulk)
+    bulk = [
+        i for i in bulk if len(i[0]) > 15000
+    ]  # for 128x128, 14000 is fair. Around 20% of patches are filtered out
+    cursor.executemany(
+        f"INSERT INTO {table_name}({lr_col}, {hr_col}) VALUES (?,?)", bulk
+    )
     conn.commit()
 
 cursor.execute(f"select max(rowid) from {table_name}")

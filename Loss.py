@@ -36,9 +36,16 @@ class WeightedL1Loss(nn.SmoothL1Loss):
         self.weights = torch.FloatTensor(weights).view(3, 1, 1)
 
     def forward(self, input_data, target):
-        return self.l1_loss(input_data, target, size_average=self.size_average,
-                            reduce=self.reduce)
+        return self.l1_loss(
+            input_data, target, size_average=self.size_average, reduce=self.reduce
+        )
 
     def l1_loss(self, input_data, target, size_average=True, reduce=True):
-        return _pointwise_loss(lambda a, b: torch.abs(a - b) * self.weights.expand_as(a),
-                               torch._C._nn.l1_loss, input_data, target, size_average, reduce)
+        return _pointwise_loss(
+            lambda a, b: torch.abs(a - b) * self.weights.expand_as(a),
+            torch._C._nn.l1_loss,
+            input_data,
+            target,
+            size_average,
+            reduce,
+        )

@@ -17,9 +17,9 @@ from torchvision.transforms.functional import to_tensor
 
 class ImageH5Data(Dataset):
     def __init__(self, h5py_file, folder_name):
-        self.data = h5py.File(h5py_file, 'r')[folder_name]
-        self.data_hr = self.data['train_hr']
-        self.data_lr = self.data['train_lr']
+        self.data = h5py.File(h5py_file, "r")[folder_name]
+        self.data_hr = self.data["train_hr"]
+        self.data_lr = self.data["train_lr"]
         self.len_imgs = len(self.data_hr)
         self.h5py_file = h5py_file
         self.folder_name = folder_name
@@ -39,18 +39,25 @@ class ImageH5Data(Dataset):
 
 
 class ImageData(Dataset):
-    def __init__(self,
-                 img_folder,
-                 patch_size=96,
-                 shrink_size=2,
-                 noise_level=1,
-                 down_sample_method=None,
-                 color_mod='RGB',
-                 dummy_len=None):
+    def __init__(
+        self,
+        img_folder,
+        patch_size=96,
+        shrink_size=2,
+        noise_level=1,
+        down_sample_method=None,
+        color_mod="RGB",
+        dummy_len=None,
+    ):
 
         self.img_folder = img_folder
         all_img = glob.glob(self.img_folder + "/**", recursive=True)
-        self.img = list(filter(lambda x: x.endswith('png') or x.endswith("jpg") or x.endswith("jpeg"), all_img))
+        self.img = list(
+            filter(
+                lambda x: x.endswith("png") or x.endswith("jpg") or x.endswith("jpeg"),
+                all_img,
+            )
+        )
         self.total_img = len(self.img)
         self.dummy_len = dummy_len if dummy_len is not None else self.total_img
         self.random_cropper = RandomCrop(size=patch_size)
@@ -70,14 +77,14 @@ class ImageData(Dataset):
         idx = random.choice(range(0, self.total_img))
         img = self.img[idx]
         patch = self.get_img_patches(img)
-        if self.color_mod == 'RGB':
+        if self.color_mod == "RGB":
             lr_img = patch[0].convert("RGB")
             hr_img = patch[1].convert("RGB")
-        elif self.color_mod == 'YCbCr':
-            lr_img, _, _ = patch[0].convert('YCbCr').split()
-            hr_img, _, _ = patch[1].convert('YCbCr').split()
+        elif self.color_mod == "YCbCr":
+            lr_img, _, _ = patch[0].convert("YCbCr").split()
+            hr_img, _, _ = patch[1].convert("YCbCr").split()
         else:
-            raise KeyError('Either RGB or YCbCr')
+            raise KeyError("Either RGB or YCbCr")
         return to_tensor(lr_img), to_tensor(hr_img)
 
 
@@ -85,14 +92,14 @@ class Image2Sqlite(ImageData):
     def __getitem__(self, item):
         img = self.img[item]
         lr_hr_patch = self.get_img_patches(img)
-        if self.color_mod == 'RGB':
+        if self.color_mod == "RGB":
             lr_img = lr_hr_patch[0].convert("RGB")
             hr_img = lr_hr_patch[1].convert("RGB")
-        elif self.color_mod == 'YCbCr':
-            lr_img, _, _ = lr_hr_patch[0].convert('YCbCr').split()
-            hr_img, _, _ = lr_hr_patch[1].convert('YCbCr').split()
+        elif self.color_mod == "YCbCr":
+            lr_img, _, _ = lr_hr_patch[0].convert("YCbCr").split()
+            hr_img, _, _ = lr_hr_patch[1].convert("YCbCr").split()
         else:
-            raise KeyError('Either RGB or YCbCr')
+            raise KeyError("Either RGB or YCbCr")
         lr_byte = self.convert_to_bytevalue(lr_img)
         hr_byte = self.convert_to_bytevalue(hr_img)
         return [lr_byte, hr_byte]
@@ -100,12 +107,19 @@ class Image2Sqlite(ImageData):
     @staticmethod
     def convert_to_bytevalue(pil_img):
         img_byte = io.BytesIO()
-        pil_img.save(img_byte, format='png')
+        pil_img.save(img_byte, format="png")
         return img_byte.getvalue()
 
 
 class ImageDBData(Dataset):
-    def __init__(self, db_file, db_table="images", lr_col="lr_img", hr_col="hr_img", max_images=None):
+    def __init__(
+        self,
+        db_file,
+        db_table="images",
+        lr_col="lr_img",
+        hr_col="hr_img",
+        max_images=None,
+    ):
         self.db_file = db_file
         self.db_table = db_table
         self.lr_col = lr_col
@@ -140,7 +154,9 @@ class ImageDBData(Dataset):
         # note sqlite rowid starts with 1
         with sqlite3.connect(self.db_file) as conn:
             cursor = conn.cursor()
-            cursor.execute(f"SELECT {self.lr_col}, {self.hr_col} FROM {self.db_table} WHERE ROWID={item + 1}")
+            cursor.execute(
+                f"SELECT {self.lr_col}, {self.hr_col} FROM {self.db_table} WHERE ROWID={item + 1}"
+            )
             lr, hr = cursor.fetchone()
             lr = Image.open(io.BytesIO(lr)).convert("RGB")
             hr = Image.open(io.BytesIO(hr)).convert("RGB")
@@ -161,18 +177,14 @@ class ImagePatchData(Dataset):
 
     def __getitem__(self, item):
         lr_file = self.lr_imgs[item]
-        hr_path = re.sub("lr", 'hr', os.path.dirname(lr_file))
+        hr_path = re.sub("lr", "hr", os.path.dirname(lr_file))
         filename = os.path.basename(lr_file)
         hr_file = os.path.join(hr_path, filename)
         return to_tensor(Image.open(lr_file)), to_tensor(Image.open(hr_file))
 
 
 class ImageAugment:
-    def __init__(self,
-                 shrink_size=2,
-                 noise_level=1,
-                 down_sample_method=None
-                 ):
+    def __init__(self, shrink_size=2, noise_level=1, down_sample_method=None):
         # noise_level (int): 0: no noise; 1: 75-95% quality; 2:50-75%
         if noise_level == 0:
             self.noise_level = [0, 0]
@@ -188,7 +200,9 @@ class ImageAugment:
     def shrink_img(self, hr_img):
 
         if self.down_sample_method is None:
-            resample_method = random.choice([Image.BILINEAR, Image.BICUBIC, Image.LANCZOS])
+            resample_method = random.choice(
+                [Image.BILINEAR, Image.BICUBIC, Image.LANCZOS]
+            )
         else:
             resample_method = self.down_sample_method
         img_w, img_h = tuple(map(lambda x: int(x / self.shrink_size), hr_img.size))
@@ -198,7 +212,7 @@ class ImageAugment:
     def add_jpeg_noise(self, hr_img):
         quality = 100 - round(random.uniform(*self.noise_level))
         lr_img = BytesIO()
-        hr_img.save(lr_img, format='JPEG', quality=quality)
+        hr_img.save(lr_img, format="JPEG", quality=quality)
         lr_img.seek(0)
         lr_img = Image.open(lr_img)
         return lr_img
@@ -212,4 +226,6 @@ class ImageAugment:
 
     def up_sample(self, img, resample):
         width, height = img.size
-        return img.resize((self.shrink_size * width, self.shrink_size * height), resample=resample)
+        return img.resize(
+            (self.shrink_size * width, self.shrink_size * height), resample=resample
+        )

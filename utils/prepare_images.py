@@ -20,7 +20,7 @@ class ImageSplitter:
         self.pad_size = boarder_pad_size
         self.height = 0
         self.width = 0
-        self.upsampler = nn.Upsample(scale_factor=scale_factor, mode='bilinear')
+        self.upsampler = nn.Upsample(scale_factor=scale_factor, mode="bilinear")
 
     def split_img_tensor(self, pil_img, scale_method=Image.BILINEAR, img_pad=0):
         # resize image and convert them into tensor
@@ -31,30 +31,49 @@ class ImageSplitter:
         self.width = width
 
         if scale_method is not None:
-            img_up = pil_img.resize((2 * pil_img.size[0], 2 * pil_img.size[1]), scale_method)
+            img_up = pil_img.resize(
+                (2 * pil_img.size[0], 2 * pil_img.size[1]), scale_method
+            )
             img_up = to_tensor(img_up).unsqueeze(0)
             img_up = nn.ReplicationPad2d(self.pad_size * self.scale_factor)(img_up)
 
         patch_box = []
         # avoid the residual part is smaller than the padded size
-        if height % self.seg_size < self.pad_size or width % self.seg_size < self.pad_size:
+        if (
+            height % self.seg_size < self.pad_size
+            or width % self.seg_size < self.pad_size
+        ):
             self.seg_size += self.scale_factor * self.pad_size
 
         # split image into over-lapping pieces
         for i in range(self.pad_size, height, self.seg_size):
             for j in range(self.pad_size, width, self.seg_size):
-                part = img_tensor[:, :,
-                       (i - self.pad_size):min(i + self.pad_size + self.seg_size, height),
-                       (j - self.pad_size):min(j + self.pad_size + self.seg_size, width)]
+                part = img_tensor[
+                    :,
+                    :,
+                    (i - self.pad_size) : min(
+                        i + self.pad_size + self.seg_size, height
+                    ),
+                    (j - self.pad_size) : min(j + self.pad_size + self.seg_size, width),
+                ]
                 if img_pad > 0:
                     part = nn.ZeroPad2d(img_pad)(part)
                 if scale_method is not None:
                     # part_up = self.upsampler(part)
-                    part_up = img_up[:, :,
-                              self.scale_factor * (i - self.pad_size):min(i + self.pad_size + self.seg_size,
-                                                                          height) * self.scale_factor,
-                              self.scale_factor * (j - self.pad_size):min(j + self.pad_size + self.seg_size,
-                                                                          width) * self.scale_factor]
+                    part_up = img_up[
+                        :,
+                        :,
+                        self.scale_factor
+                        * (i - self.pad_size) : min(
+                            i + self.pad_size + self.seg_size, height
+                        )
+                        * self.scale_factor,
+                        self.scale_factor
+                        * (j - self.pad_size) : min(
+                            j + self.pad_size + self.seg_size, width
+                        )
+                        * self.scale_factor,
+                    ]
 
                     patch_box.append((part, part_up))
                 else:
@@ -62,7 +81,9 @@ class ImageSplitter:
         return patch_box
 
     def merge_img_tensor(self, list_img_tensor):
-        out = torch.zeros((1, 3, self.height * self.scale_factor, self.width * self.scale_factor))
+        out = torch.zeros(
+            (1, 3, self.height * self.scale_factor, self.width * self.scale_factor)
+        )
         img_tensors = copy.copy(list_img_tensor)
         rem = self.pad_size * 2
 
@@ -77,7 +98,7 @@ class ImageSplitter:
                 # might have error
                 if len(part.size()) > 3:
                     _, _, p_h, p_w = part.size()
-                    out[:, :, i:i + p_h, j:j + p_w] = part
+                    out[:, :, i : i + p_h, j : j + p_w] = part
                 # out[:,:,
                 # self.scale_factor*i:self.scale_factor*i+p_h,
                 # self.scale_factor*j:self.scale_factor*j+p_w] = part
@@ -85,11 +106,13 @@ class ImageSplitter:
         return out
 
 
-def load_single_image(img_file,
-                      up_scale=False,
-                      up_scale_factor=2,
-                      up_scale_method=Image.BILINEAR,
-                      zero_padding=False):
+def load_single_image(
+    img_file,
+    up_scale=False,
+    up_scale_factor=2,
+    up_scale_method=Image.BILINEAR,
+    zero_padding=False,
+):
     img = Image.open(img_file).convert("RGB")
     out = to_tensor(img).unsqueeze(0)
     if zero_padding:
@@ -111,7 +134,7 @@ def standardize_img_format(img_folder):
         os.rename(img_file, out)
 
     list_imgs = []
-    for i in ['png', "jpeg", 'jpg']:
+    for i in ["png", "jpeg", "jpg"]:
         list_imgs.extend(glob.glob(img_folder + "**/*." + i, recursive=True))
     print("Found {} images.".format(len(list_imgs)))
     pool = ThreadPool(4)

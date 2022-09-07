@@ -9,25 +9,41 @@ from utils import image_quality
 from utils.cls import CyclicLR
 from utils.prepare_images import *
 
-train_folder = './dataset/train'
+train_folder = "./dataset/train"
 test_folder = "./dataset/test"
 
-img_dataset = ImageDBData(db_file='dataset/images.db', db_table="train_images_size_128_noise_1_rgb", max_images=24)
+img_dataset = ImageDBData(
+    db_file="dataset/images.db",
+    db_table="train_images_size_128_noise_1_rgb",
+    max_images=24,
+)
 img_data = DataLoader(img_dataset, batch_size=6, shuffle=True, num_workers=6)
 
 total_batch = len(img_data)
 print(len(img_dataset))
 
-test_dataset = ImageDBData(db_file='dataset/test2.db', db_table="test_images_size_128_noise_1_rgb", max_images=None)
+test_dataset = ImageDBData(
+    db_file="dataset/test2.db",
+    db_table="test_images_size_128_noise_1_rgb",
+    max_images=None,
+)
 num_test = len(test_dataset)
 test_data = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=1)
 
 criteria = nn.L1Loss()
 
-model = CARN_V2(color_channels=3, mid_channels=64, conv=nn.Conv2d,
-                single_conv_size=3, single_conv_group=1,
-                scale=2, activation=nn.LeakyReLU(0.1),
-                SEBlock=True, repeat_blocks=3, atrous=(1, 1, 1))
+model = CARN_V2(
+    color_channels=3,
+    mid_channels=64,
+    conv=nn.Conv2d,
+    single_conv_size=3,
+    single_conv_group=1,
+    scale=2,
+    activation=nn.LeakyReLU(0.1),
+    SEBlock=True,
+    repeat_blocks=3,
+    atrous=(1, 1, 1),
+)
 
 model.total_parameters()
 
@@ -41,16 +57,23 @@ model.load_state_dict(torch.load("CARN_model_checkpoint.pt"))
 
 learning_rate = 1e-4
 weight_decay = 1e-6
-optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay, amsgrad=True)
+optimizer = optim.Adam(
+    model.parameters(), lr=learning_rate, weight_decay=weight_decay, amsgrad=True
+)
 # optimizer = optim.SGD(model.parameters(), momentum=0.9, nesterov=True, weight_decay=weight_decay, lr=learning_rate)
 
 optimizer = FP16_Optimizer(optimizer, static_loss_scale=128.0, verbose=False)
 # optimizer.load_state_dict(torch.load("CARN_adam_checkpoint.pt"))
 
 last_iter = -1  # torch.load("CARN_scheduler_last_iter")
-scheduler = CyclicLR(optimizer.optimizer, base_lr=1e-4, max_lr=1e-4,
-                     step_size=3 * total_batch, mode="triangular",
-                     last_batch_iteration=last_iter)
+scheduler = CyclicLR(
+    optimizer.optimizer,
+    base_lr=1e-4,
+    max_lr=1e-4,
+    step_size=3 * total_batch,
+    mode="triangular",
+    last_batch_iteration=last_iter,
+)
 train_loss = []
 train_ssim = []
 train_psnr = []
@@ -70,7 +93,12 @@ test_psnr = []
 
 counter = 0
 iteration = 2
-ibar = trange(iteration, ascii=True, maxinterval=1, postfix={"avg_loss": 0, "train_ssim": 0, "test_ssim": 0})
+ibar = trange(
+    iteration,
+    ascii=True,
+    maxinterval=1,
+    postfix={"avg_loss": 0, "train_ssim": 0, "test_ssim": 0},
+)
 for i in ibar:
     # batch_loss = []
     # insample_ssim = []
@@ -97,11 +125,14 @@ for i in ibar:
         ssim = image_quality.msssim(outputs, hr_img).item()
         psnr = image_quality.psnr(outputs, hr_img).item()
 
-        ibar.set_postfix(ratio=index / total_batch, loss=loss.item(),
-                         ssim=ssim, batch=index,
-                         psnr=psnr,
-                         lr=scheduler.current_lr
-                         )
+        ibar.set_postfix(
+            ratio=index / total_batch,
+            loss=loss.item(),
+            ssim=ssim,
+            batch=index,
+            psnr=psnr,
+            lr=scheduler.current_lr,
+        )
         train_loss.append(loss.item())
         train_ssim.append(ssim)
         train_psnr.append(psnr)
@@ -111,15 +142,15 @@ for i in ibar:
         # -------------------------------------
 
         if (counter + 1) % 500 == 0:
-            torch.save(model.state_dict(), 'CARN_model_checkpoint.pt')
-            torch.save(optimizer.state_dict(), 'CARN_adam_checkpoint.pt')
-            torch.save(train_loss, 'train_loss.pt')
+            torch.save(model.state_dict(), "CARN_model_checkpoint.pt")
+            torch.save(optimizer.state_dict(), "CARN_adam_checkpoint.pt")
+            torch.save(train_loss, "train_loss.pt")
             torch.save(train_ssim, "train_ssim.pt")
-            torch.save(train_psnr, 'train_psnr.pt')
+            torch.save(train_psnr, "train_psnr.pt")
             torch.save(scheduler.last_batch_iteration, "CARN_scheduler_last_iter.pt")
 
     # +++++++++++++++++++++++++++++++++++++
-    #           End of One Epoch      
+    #           End of One Epoch
     # -------------------------------------
 
     # one_ite_loss = np.mean(batch_loss)
@@ -131,12 +162,12 @@ for i in ibar:
     # train_ssim.append(one_ite_ssim)
     # train_psnr.append(one_ite_psnr)
 
-    torch.save(model.state_dict(), 'CARN_model_checkpoint.pt')
+    torch.save(model.state_dict(), "CARN_model_checkpoint.pt")
     # torch.save(scheduler, "CARN_scheduler_optim.pt")
-    torch.save(optimizer.state_dict(), 'CARN_adam_checkpoint.pt')
-    torch.save(train_loss, 'train_loss.pt')
+    torch.save(optimizer.state_dict(), "CARN_adam_checkpoint.pt")
+    torch.save(train_loss, "train_loss.pt")
     torch.save(train_ssim, "train_ssim.pt")
-    torch.save(train_psnr, 'train_psnr.pt')
+    torch.save(train_psnr, "train_psnr.pt")
     # torch.save(scheduler.last_batch_iteration, "CARN_scheduler_last_iter.pt")
 
     # +++++++++++++++++++++++++++++++++++++
@@ -165,7 +196,7 @@ for i in ibar:
         test_loss.append(np.mean(batch_loss))
         test_psnr.append(np.mean(psnr))
 
-        torch.save(test_loss, 'test_loss.pt')
+        torch.save(test_loss, "test_loss.pt")
         torch.save(test_ssim, "test_ssim.pt")
         torch.save(test_psnr, "test_psnr.pt")
 

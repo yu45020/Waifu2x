@@ -54,7 +54,7 @@ class BaseModule(nn.Module):
 
     @contextmanager
     def set_activation_inplace(self):
-        if hasattr(self, 'act_fn') and hasattr(self.act_fn, 'inplace'):
+        if hasattr(self, "act_fn") and hasattr(self.act_fn, "inplace"):
             # save memory
             self.act_fn.inplace = True
             yield
@@ -65,7 +65,9 @@ class BaseModule(nn.Module):
     def total_parameters(self):
         total = sum([i.numel() for i in self.parameters()])
         trainable = sum([i.numel() for i in self.parameters() if i.requires_grad])
-        print("Total parameters : {}. Trainable parameters : {}".format(total, trainable))
+        print(
+            "Total parameters : {}. Trainable parameters : {}".format(total, trainable)
+        )
         return total
 
     def forward(self, *x):
@@ -73,15 +75,38 @@ class BaseModule(nn.Module):
 
 
 class ResidualFixBlock(BaseModule):
-    def __init__(self, in_channels, out_channels, kernel_size=3, padding=1, dilation=1,
-                 groups=1, activation=nn.SELU(), conv=nn.Conv2d):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size=3,
+        padding=1,
+        dilation=1,
+        groups=1,
+        activation=nn.SELU(),
+        conv=nn.Conv2d,
+    ):
         super(ResidualFixBlock, self).__init__()
         self.act_fn = activation
         self.m = nn.Sequential(
-            conv(in_channels, out_channels, kernel_size, padding=padding, dilation=dilation, groups=groups),
+            conv(
+                in_channels,
+                out_channels,
+                kernel_size,
+                padding=padding,
+                dilation=dilation,
+                groups=groups,
+            ),
             activation,
             # conv(out_channels, out_channels, kernel_size, padding=(kernel_size - 1) // 2, dilation=1, groups=groups),
-            conv(in_channels, out_channels, kernel_size, padding=padding, dilation=dilation, groups=groups),
+            conv(
+                in_channels,
+                out_channels,
+                kernel_size,
+                padding=padding,
+                dilation=dilation,
+                groups=groups,
+            ),
         )
 
     def forward(self, x):
@@ -90,12 +115,29 @@ class ResidualFixBlock(BaseModule):
 
 
 class ConvBlock(BaseModule):
-    def __init__(self, in_channels, out_channels, kernel_size=3, padding=1, dilation=1, groups=1,
-                 activation=nn.SELU(), conv=nn.Conv2d):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size=3,
+        padding=1,
+        dilation=1,
+        groups=1,
+        activation=nn.SELU(),
+        conv=nn.Conv2d,
+    ):
         super(ConvBlock, self).__init__()
-        self.m = nn.Sequential(conv(in_channels, out_channels, kernel_size, padding=padding,
-                                    dilation=dilation, groups=groups),
-                               activation)
+        self.m = nn.Sequential(
+            conv(
+                in_channels,
+                out_channels,
+                kernel_size,
+                padding=padding,
+                dilation=dilation,
+                groups=groups,
+            ),
+            activation,
+        )
 
     def forward(self, x):
         return self.m(x)
@@ -106,9 +148,15 @@ class UpSampleBlock(BaseModule):
         assert scale in [2, 4, 8], "Currently UpSampleBlock supports 2, 4, 8 scaling"
         super(UpSampleBlock, self).__init__()
         m = nn.Sequential(
-            conv(channels, 4 * channels, kernel_size=3, padding=atrous_rate, dilation=atrous_rate),
+            conv(
+                channels,
+                4 * channels,
+                kernel_size=3,
+                padding=atrous_rate,
+                dilation=atrous_rate,
+            ),
             activation,
-            nn.PixelShuffle(2)
+            nn.PixelShuffle(2),
         )
         self.m = nn.Sequential(*[m for _ in range(int(log(scale, 2)))])
 
@@ -128,11 +176,11 @@ class SpatialChannelSqueezeExcitation(BaseModule):
             nn.Linear(in_channel, linear_nodes),
             activation,
             nn.Linear(linear_nodes, in_channel),
-            nn.Sigmoid()
+            nn.Sigmoid(),
         )
         self.spatial_excite = nn.Sequential(
             nn.Conv2d(in_channel, 1, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.Sigmoid()
+            nn.Sigmoid(),
         )
 
     def forward(self, x):
@@ -158,15 +206,33 @@ class PartialConv(nn.Module):
     # https://github.com/SeitaroShinagawa/chainer-partial_convolution_image_inpainting/blob/master/common/net.py
     # partial based padding
     # https: // github.com / NVIDIA / partialconv / blob / master / models / pd_resnet.py
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1,
-                 padding=0, dilation=1, groups=1, bias=True):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride=1,
+        padding=0,
+        dilation=1,
+        groups=1,
+        bias=True,
+    ):
 
         super(PartialConv, self).__init__()
-        self.feature_conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride,
-                                      padding, dilation, groups, bias)
+        self.feature_conv = nn.Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            groups,
+            bias,
+        )
 
-        self.mask_conv = nn.Conv2d(1, 1, kernel_size, stride,
-                                   padding, dilation, groups, bias=False)
+        self.mask_conv = nn.Conv2d(
+            1, 1, kernel_size, stride, padding, dilation, groups, bias=False
+        )
         self.window_size = self.mask_conv.kernel_size[0] * self.mask_conv.kernel_size[1]
         torch.nn.init.constant_(self.mask_conv.weight, 1.0)
 
